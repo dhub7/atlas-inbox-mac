@@ -16,8 +16,7 @@ $git = "C:\Program Files\Git\cmd\git.exe"
 $remoteB2 = "b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac"
 
 if ($Version) {
-  $Version.Trim() | Set-Content -Path (Join-Path $here "VERSION") -Encoding ascii -NoNewline
-  Add-Content -Path (Join-Path $here "VERSION") -Value ""
+  [IO.File]::WriteAllText((Join-Path $here "VERSION"), $Version.Trim() + "`n")
 } else {
   $cur = (Get-Content (Join-Path $here "VERSION") -Raw).Trim()
   if ($cur -match '^(\d{4}\.\d{2}\.\d{2})\.(\d+)$') {
@@ -26,8 +25,7 @@ if ($Version) {
   } else {
     $Version = Get-Date -Format "yyyy.MM.dd.1"
   }
-  $Version | Set-Content -Path (Join-Path $here "VERSION") -Encoding ascii -NoNewline
-  Add-Content -Path (Join-Path $here "VERSION") -Value ""
+  [IO.File]::WriteAllText((Join-Path $here "VERSION"), $Version + "`n")
 }
 $Version = (Get-Content (Join-Path $here "VERSION") -Raw).Trim()
 Write-Host "VERSION $Version"
@@ -48,7 +46,7 @@ $pack = @(
 
 if (Test-Path $git) {
   if (-not (Test-Path (Join-Path $here ".git"))) {
-    Write-Host "git init (repo só desta pasta)"
+    Write-Host "git init (repo so desta pasta)"
     & $git init -b main | Out-Null
   }
   & $git add -A
@@ -60,7 +58,7 @@ if (Test-Path $git) {
   if ($origin -match "origin") {
     & $git push -u origin HEAD
   } else {
-    Write-Host "sem remote git — só B2 desta vez (gh não está neste PC)"
+    Write-Host "sem remote git - so B2 desta vez"
   }
 }
 
@@ -80,6 +78,6 @@ $verFile = Join-Path $env:TEMP "atlas-inbox-version.txt"
 if ($LASTEXITCODE -ne 0) { throw "rclone version.txt falhou" }
 
 $check = (& $rclone cat "$remoteB2/version.txt").Trim()
-if ($check -ne $Version) { throw "version.txt no B2 e local diferem: '$check' vs '$Version'" }
-Write-Host "publicado $Version — próximo clique do Victor pega"
+if ($check -ne $Version) { throw "version.txt no B2 e local diferem: $check vs $Version" }
+Write-Host "publicado $Version - proximo clique do Victor pega"
 Write-Host "B2 $remoteB2"
