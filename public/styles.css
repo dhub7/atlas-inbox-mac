@@ -1,66 +1,51 @@
-/* Inbox — mesma pele Windows 98 do Drive (explorer.css). Sem papel/serif. */
-.inbox-win {
-  width: min(1280px, calc(100vw - 12px));
-  height: min(860px, calc(100vh - 12px));
-}
-.inbox-win .menubar a { color: inherit; text-decoration: none; }
-.inbox-win .menubar a:hover { text-decoration: underline; }
+/* Inbox extras — Mac OS 9, same tokens as explorer.css */
+.inbox-win { width: min(1280px, calc(100vw - 16px)); height: min(860px, calc(100vh - 16px)); }
 
 .workspace {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 8px;
-  padding: 8px;
+  gap: 0;
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
+  background: #fff;
 }
-@media (max-width: 900px) {
-  .workspace { grid-template-columns: 1fr; }
-}
+@media (max-width: 900px) { .workspace { grid-template-columns: 1fr; overflow: auto; } }
 
+.send-col { padding: 8px; overflow: auto; border-right: 1px solid #000; }
 .chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
 .chip {
-  background: var(--face);
-  border: 2px solid;
-  border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+  background: var(--plat);
+  border: 1px solid #000;
+  border-radius: 4px;
   padding: 3px 10px;
   font: inherit;
   cursor: pointer;
+  box-shadow: inset 1px 1px 0 #fff;
 }
-.chip.on {
-  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
-  font-weight: 700;
-  background: #e0e0e0;
-}
+.chip.on { background: #000; color: #fff; box-shadow: none; }
 
-.grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  margin: 0 0 8px;
-}
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 0 8px; }
 .grid label { display: block; margin-bottom: 2px; }
-.grid select, .grid input, .mkdir input {
-  width: 100%;
-  background: #fff;
-  border: 2px solid;
-  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
-  font: inherit;
-  padding: 3px 5px;
-}
+.grid select, .grid input, .mkdir input { width: 100%; }
 
 .path-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 8px; }
-.slate { flex: 1 1 200px; background: #fff; border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); padding: 3px 6px; }
-.crumbs button { font: inherit; background: none; border: 0; color: var(--title); cursor: pointer; padding: 0 2px; }
+.slate {
+  flex: 1 1 200px;
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: inset 1px 1px 0 #999;
+  padding: 3px 6px;
+}
+.crumbs button { font: inherit; background: none; border: 0; box-shadow: none; cursor: pointer; padding: 0 2px; }
 .crumbs .here { font-weight: 700; }
 .mkdir { display: flex; gap: 6px; flex: 1 1 220px; }
 
 .drop {
   background: #fff;
-  border: 2px solid;
-  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
-  padding: 16px 10px;
+  border: 1px solid #000;
+  box-shadow: inset 1px 1px 0 #999;
+  padding: 14px 10px;
   text-align: center;
   margin: 0 0 8px;
 }
@@ -69,58 +54,64 @@
 .picked.ok { font-weight: 700; }
 
 .bar-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.job-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .hint { color: #444; }
-.err { color: #800000; min-height: 1.1em; margin: 0; }
 
-.drive-col {
-  background: #fff;
-  border: 2px solid;
-  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
-  padding: 6px;
-  min-height: 0;
-  overflow: auto;
-}
+.drive-col { padding: 8px; overflow: auto; min-height: 0; }
 .drive-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
-.live-pill { border: 1px solid var(--lo); padding: 1px 6px; }
-.live-pill.on { background: var(--title); color: #fff; }
+.live-pill { border: 1px solid #000; padding: 1px 6px; background: var(--plat); }
+.live-pill.on { background: #000; color: #fff; }
 
 .inset-list .item, .list .item {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 2px 8px;
   padding: 3px 4px;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 1px dotted #bbb;
   font: inherit;
   width: 100%;
   text-align: left;
   background: transparent;
+  border-left: 0; border-right: 0; border-top: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .item.folder { cursor: pointer; }
-.item.folder:hover { background: #000080; color: #fff; }
-.item .name { font-family: Tahoma, sans-serif; }
+.item.folder:hover, .item.folder:hover .meta { background: #000; color: #fff; }
 .item .meta { color: #444; font-size: 11px; }
-.item.ok .name { color: #008000; }
+.item.ok .name { font-weight: 700; }
 .item.fail .name { color: #800000; }
 
 .job-card {
   background: #fff;
-  border: 2px solid;
-  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
+  border: 1px solid #000;
+  box-shadow: inset 1px 1px 0 #999;
   padding: 8px;
   margin: 0 0 8px;
 }
 .job-status { font-weight: 700; margin: 0 0 6px; text-transform: uppercase; }
 .job-pct { font-size: 28px; font-weight: 700; margin: 0 0 4px; }
-.job-meter { height: 12px; background: #fff; border: 2px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); margin: 0 0 8px; overflow: hidden; }
-.job-meter > span { display: block; height: 100%; background: var(--title); width: 0; }
+.job-meter {
+  height: 12px;
+  background: #fff;
+  border: 1px solid #000;
+  margin: 0 0 8px;
+  overflow: hidden;
+}
+.job-meter > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: repeating-linear-gradient(-45deg, #000 0 6px, #fff 6px 12px);
+}
 .job-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
 .job-stats span { color: #444; }
 .job-path { word-break: break-all; margin: 6px 0 0; font-size: 11px; }
+.verify-out { white-space: pre-wrap; font-size: 11px; margin: 8px 0 0; }
 
 .dupes {
   background: #fff;
-  border: 2px solid;
-  border-color: var(--hi) var(--lo) var(--lo) var(--hi);
+  border: 1px solid #000;
   padding: 8px;
   margin: 0 0 8px;
 }
@@ -131,15 +122,7 @@
   grid-template-columns: 1fr auto;
   gap: 4px 8px;
   padding: 6px 0;
-  border-top: 1px solid var(--lo);
+  border-top: 1px dotted #888;
 }
 .dupe .nm { word-break: break-all; }
 .dupe .why { color: #444; font-size: 11px; grid-column: 1 / -1; }
-.dupe select {
-  background: #fff;
-  border: 2px solid;
-  border-color: var(--lo) var(--hi) var(--hi) var(--lo);
-  font: inherit;
-}
-
-button:disabled { opacity: 0.55; cursor: not-allowed; }

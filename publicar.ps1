@@ -43,7 +43,9 @@ $pack = @(
   "LEIA_DANIEL.md",
   "ESTADO.md",
   "BOOTSTRAP_DEPOIS.command",
-  "README.md"
+  "README.md",
+  "VICTOR_TERMINAL.md",
+  "GITHUB.md"
 )
 
 if (Test-Path $git) {

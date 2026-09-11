@@ -933,9 +933,18 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    const jobCancel = url.pathname.match(/^\/api\/jobs\/([^/]+)\/cancel$/);
-    if (req.method === "POST" && jobCancel) {
-      json(res, 200, jobs.cancel(decodeURIComponent(jobCancel[1])));
+    const jobAct = url.pathname.match(/^\/api\/jobs\/([^/]+)\/(cancel|pause|resume|restart|verify)$/);
+    if (req.method === "POST" && jobAct) {
+      const id = decodeURIComponent(jobAct[1]);
+      const act = jobAct[2];
+      const fn = jobs[act];
+      json(res, 200, fn(id));
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/cache/reset") {
+      const body = await readJson(req).catch(() => ({}));
+      json(res, 200, jobs.resetCache({ thumbs: body.thumbs !== false, jobsClear: body.jobs === true }));
       return;
     }
 

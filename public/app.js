@@ -102,15 +102,6 @@ function prettyElapsed(startedAt, endedAt) {
   return `${Math.floor(sec / 3600)} h ${Math.round((sec % 3600) / 60)} min`;
 }
 
-function statusLabel(status) {
-  if (status === "queued") return "Na fila";
-  if (status === "running") return "Enviando agora";
-  if (status === "done") return "Chegou no arquivo";
-  if (status === "cancelled") return "Cancelado";
-  if (status === "paused_error") return "Parou";
-  return status || "";
-}
-
 function escapeHtml(s) {
   return String(s)
     .replace(/&/g, "&amp;")
@@ -182,7 +173,7 @@ function setPicked(p) {
 
 function syncButtons() {
   const live = Boolean(activeJobId);
-  btnSend.disabled = !pickedPath || live;
+  btnSend.disabled = !pickedPath || live || (activeJobId && true);
   btnCancel.disabled = !live;
   if (!pickedPath) sendHint.textContent = "Escolhe a pasta pra liberar o envio.";
   else if (live) sendHint.textContent = "Enviando. Pode fechar a janela — o envio continua.";
@@ -191,6 +182,16 @@ function syncButtons() {
 
 function isLive(job) {
   return job && (job.status === "running" || job.status === "queued");
+}
+
+function statusLabel(status) {
+  if (status === "queued") return "Na fila";
+  if (status === "running") return "Enviando agora";
+  if (status === "paused") return "Pausado";
+  if (status === "done") return "Chegou no arquivo";
+  if (status === "cancelled") return "Cancelado";
+  if (status === "paused_error") return "Parou";
+  return status || "";
 }
 
 function drawJob(job) {
@@ -202,10 +203,10 @@ function drawJob(job) {
   }
   queueEl.classList.remove("hidden");
   const live = isLive(job);
-  livePill.textContent = live ? "enviando" : job.status === "done" ? "atualizado" : "parado";
+  livePill.textContent = live ? "enviando" : job.status === "paused" ? "pausado" : job.status === "done" ? "atualizado" : "parado";
   livePill.classList.toggle("on", live);
   const pct = job.percent == null ? (live ? "…" : "0") : String(Math.round(job.percent));
-  const cls = live ? "live" : job.status === "done" ? "ok" : "fail";
+  const cls = live ? "live" : job.status === "done" ? "ok" : job.status === "paused" ? "live" : "fail";
   const eta = live
     ? prettyEta(job.eta, job.startedAt, job.bytes || 0, job.total || 0)
     : job.status === "done"
@@ -228,8 +229,29 @@ function drawJob(job) {
         <div><b>${escapeHtml(files || "—")}</b> <span>arquivos</span></div>
       </div>
       ${job.error ? `<p class="err">${escapeHtml(job.error)}</p>` : ""}
+      ${job.verify ? `<p class="verify-out">${escapeHtml(job.verify.summary || "")}${job.verify.log ? "\n" + job.verify.log : ""}</p>` : ""}
       <p class="job-path">${escapeHtml(job.srcPath || "")} → ${escapeHtml(job.destPrefix || "")}</p>
+      <div class="job-acts">${jobButtons(job)}</div>
     </div>`;
+}
+
+function jobButtons(job) {
+  const id = job.id;
+  const b = (act, label) =>
+    `<button type="button" data-act="${act}" data-id="${escapeHtml(id)}">${label}</button>`;
+  if (job.status === "running" || job.status === "queued") {
+    return b("pause", "Pausar") + b("cancel", "Cancelar");
+  }
+  if (job.status === "paused" || job.status === "paused_error") {
+    return b("resume", "Continuar") + b("restart", "Reiniciar") + b("cancel", "Cancelar");
+  }
+  if (job.status === "done") {
+    return b("verify", "Verificar arquivos") + b("restart", "Enviar de novo") + b("reset", "Zerar cache");
+  }
+  if (job.status === "cancelled") {
+    return b("resume", "Retomar") + b("reset", "Zerar cache");
+  }
+  return b("reset", "Zerar cache");
 }
 
 let lastListAt = 0;
@@ -242,7 +264,7 @@ async function refreshJobs() {
     : live || (data.jobs || [])[data.jobs.length - 1];
   if (current) {
     const running = isLive(current);
-    activeJobId = running ? current.id : "";
+    activeJobId = running || current.status === "paused" ? current.id : "";
     drawJob(current);
     syncButtons();
     const now = Date.now();
@@ -520,6 +542,28 @@ document.getElementById("dupes-go").addEventListener("click", async () => {
     sendHint.textContent = ex.message || "não começou o envio";
   } finally {
     btn.disabled = false;
+  }
+});
+
+queueEl.addEventListener("click", async (e) => {
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const act = btn.getAttribute("data-act");
+  const id = btn.getAttribute("data-id");
+  try {
+    if (act === "reset") {
+      if (!confirm("Zerar cache de miniaturas? Envios em curso não apagam.")) return;
+      await api("/api/cache/reset", { method: "POST", body: JSON.stringify({ thumbs: true, jobs: false }) });
+      sendHint.textContent = "cache de thumbs limpo";
+      return;
+    }
+    const job = await api(`/api/jobs/${encodeURIComponent(id)}/${act}`, { method: "POST", body: "{}" });
+    activeJobId = job.status === "running" || job.status === "paused" || job.status === "queued" ? job.id : "";
+    drawJob(job);
+    syncButtons();
+    startPoll();
+  } catch (ex) {
+    sendHint.textContent = ex.message || "não deu";
   }
 });
 

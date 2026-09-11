@@ -204,6 +204,7 @@ export function createStore(dir) {
       error: j.error || "",
       startedAt: j.startedAt || null,
       endedAt: j.endedAt || null,
+      verify: j.verify || null,
       dryRun: Boolean(j.dryRun),
     };
   }
@@ -300,6 +301,10 @@ export function createStore(dir) {
       child.on("close", (code) => {
         if (job.status === "cancelled") {
           finish(code);
+          return;
+        }
+        if (job.status === "paused") {
+          children.delete(job.id);
           return;
         }
         then(code);
@@ -403,12 +408,127 @@ export function createStore(dir) {
     return publicJob(job);
   }
 
+  function pause(id) {
+    const job = load().find((x) => x.id === id);
+    if (!job) throw new Error("job não encontrado");
+    if (job.status !== "running" && job.status !== "queued") {
+      throw new Error("nada pra pausar");
+    }
+    const child = children.get(id);
+    job.status = "paused";
+    job.error = "pausado — Continuar retoma (o que já subiu não vai de novo)";
+    upsert(job);
+    if (child && !child.killed) {
+      try {
+        child.kill("SIGSTOP");
+      } catch {
+        child.kill("SIGTERM");
+      }
+    }
+    return publicJob(job);
+  }
+
+  function resume(id) {
+    const job = load().find((x) => x.id === id);
+    if (!job) throw new Error("job não encontrado");
+    const child = children.get(id);
+    if (child && job.status === "paused") {
+      try {
+        child.kill("SIGCONT");
+        job.status = "running";
+        job.error = "";
+        upsert(job);
+        return publicJob(job);
+      } catch {
+        /* fall through to respawn */
+      }
+    }
+    if (job.status !== "paused" && job.status !== "paused_error" && job.status !== "cancelled") {
+      throw new Error("nada pra retomar");
+    }
+    job.error = "";
+    job.verify = null;
+    spawnCopy(job);
+    return publicJob(job);
+  }
+
+  function restart(id) {
+    const job = load().find((x) => x.id === id);
+    if (!job) throw new Error("job não encontrado");
+    const child = children.get(id);
+    if (child && !child.killed) child.kill("SIGTERM");
+    job.error = "";
+    job.verify = null;
+    job.bytes = 0;
+    job.percent = null;
+    spawnCopy(job);
+    return publicJob(job);
+  }
+
+  function verify(id) {
+    const job = load().find((x) => x.id === id);
+    if (!job) throw new Error("job não encontrado");
+    const bin = findRcloneBin();
+    const args = [
+      "check",
+      job.srcPath,
+      job.destUri,
+      "--one-way",
+      "--checksum",
+      "--fast-list",
+    ];
+    job.verify = { status: "running", summary: "conferindo checksums…" };
+    upsert(job);
+    const child = spawn(bin, args, { windowsHide: true });
+    let out = "";
+    child.stdout?.on("data", (b) => {
+      out += b.toString("utf8");
+    });
+    child.stderr?.on("data", (b) => {
+      out += b.toString("utf8");
+    });
+    child.on("close", (code) => {
+      const tail = out.slice(-1500);
+      job.verify = {
+        status: code === 0 ? "ok" : "diff",
+        summary: code === 0 ? "arquivos batem com o destino" : "tem diferença — vê o log",
+        log: tail,
+      };
+      upsert(job);
+    });
+    return publicJob(job);
+  }
+
+  function resetCache({ thumbs = true, jobsClear = false } = {}) {
+    const dataDir = path.dirname(file);
+    const thumbsDir = path.join(dataDir, "thumbs");
+    let cleared = [];
+    if (thumbs && fs.existsSync(thumbsDir)) {
+      for (const n of fs.readdirSync(thumbsDir)) {
+        try {
+          fs.unlinkSync(path.join(thumbsDir, n));
+        } catch {
+          /* skip */
+        }
+      }
+      cleared.push("thumbs");
+    }
+    if (jobsClear) {
+      for (const j of load()) {
+        const child = children.get(j.id);
+        if (child && !child.killed) child.kill("SIGTERM");
+      }
+      save([]);
+      cleared.push("jobs");
+    }
+    return { ok: true, cleared };
+  }
+
   function reconnect() {
     for (const job of load()) {
       if (job.status === "running") {
-        job.status = "paused_error";
-        job.error = "servidor reiniciou — abre Enviar de novo pra continuar (rclone retoma)";
-        job.endedAt = Date.now();
+        job.status = "paused";
+        job.error = "servidor reiniciou — Continuar retoma (rclone pula o que já subiu)";
         upsert(job);
       }
     }
@@ -416,5 +536,5 @@ export function createStore(dir) {
 
   reconnect();
 
-  return { list, get, createJob, cancel, findRcloneBin };
+  return { list, get, createJob, cancel, pause, resume, restart, verify, resetCache, findRcloneBin };
 }
