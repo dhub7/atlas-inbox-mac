@@ -1,6 +1,6 @@
 # Inbox local — memória desta frente
 
-**Atualizado:** 2026-09-11  
+**Atualizado:** 2026-09-11 (update no clique, v `2026.09.11.1`)  
 **Pasta:** `07_Execucao/B0_Infra/inbox-mac/`  
 **Windows (fonte da verdade do código):** `C:\Users\Daniel\Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac`  
 **Mac do Victor (instalação):** `~/ATLAS/inbox-mac` + ícone `~/Desktop/ATLAS Inbox.command`
@@ -81,9 +81,38 @@ Testes: `node --test test/rclone-job.test.mjs test/scan-dupes.test.mjs`
 - Recortar Shorts neste fio
 - Tratar o PDF como instalador
 
+## Publicar daqui (Daniel)
+
+```
+cd Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac
+.\publicar.ps1
+```
+
+Sobe GitHub (quando houver remote) + B2 `YT-MAIN/00_APPS/inbox-mac/`. Fora da allowlist do Drive.
+
+GitHub CLI está em `bin\gh.exe` mas **não logado**. Uma vez:
+
+```
+bin\gh.exe auth login
+bin\gh.exe repo create atlas-inbox-mac --private --source=. --remote=origin --push
+```
+
+## Última vez no Mac (bootstrap do updater)
+
+O `.env` e o LaunchAgent **ficam**. No Terminal dele, sem `$()`:
+
+```
+rclone copy b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/current/ ~/ATLAS/inbox-mac/ --exclude .env --exclude data/**
+chmod +x ~/ATLAS/inbox-mac/update-then-open.sh
+chmod +x ~/Desktop/ATLAS\ Inbox.command
+killall node
+```
+
+Copiar também o `ATLAS Inbox.command` novo pro Desktop (o da pasta `current`). Depois disso, só clica. Se tiver versão nova, notifica e atualiza.
+
 ## Próximo nesta frente
 
-1. Recopiar `inbox-mac` (sem `bin\`, sem `.env` do Windows) → `~/ATLAS/inbox-mac`
-2. `killall node` no Mac; Ctrl+F5 no Chrome
-3. Conferir Drive teal + Inbox papel + duplicados + thumbs
-4. Dump grande do HD OZARK (noite, retoma)
+1. Bootstrap no Mac (bloco acima) — última entrada remota
+2. Daqui: `.\publicar.ps1` e pedir pra ele clicar de novo (tem que aparecer a versão no canto)
+3. `gh auth login` + repo privado quando der
+4. Dump grande do HD OZARK

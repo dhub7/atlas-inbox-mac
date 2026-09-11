@@ -41,7 +41,9 @@ $pack = @(
   "ATLAS Inbox.command",
   "env.example",
   "LEIA_DANIEL.md",
-  "ESTADO.md"
+  "ESTADO.md",
+  "BOOTSTRAP_DEPOIS.command",
+  "README.md"
 )
 
 if (Test-Path $git) {
