@@ -15,11 +15,12 @@ import http from "node:http";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createStore, destUri as b2DestUri } from "./rclone-job.mjs";
 import { createThumbs } from "./thumbs.mjs";
 import { findCollisions, planDecisions, walkLocal } from "./scan-dupes.mjs";
+import { createOpsLog } from "./ops-log.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 loadEnv(path.join(here, ".env"));
@@ -39,6 +40,7 @@ const APP_VERSION = (() => {
   }
 })();
 const jobs = createStore(path.join(here, "data"));
+const ops = createOpsLog(path.join(here, "data"));
 const thumbs = createThumbs({
   dir: path.join(here, "data", "thumbs"),
   getSourceUrl: b2DownloadUrl,
@@ -430,6 +432,23 @@ async function deleteRemoteKey(fileKey) {
     await b2("b2_delete_file_version", { fileId: f.fileId, fileName: f.fileName });
   }
   return found.length;
+}
+
+function shipOps() {
+  const dump = ops.dump();
+  if (!dump.trim()) return { ok: true, skipped: true };
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const host = os.hostname().replace(/[^\w.-]+/g, "");
+  const tmp = path.join(os.tmpdir(), `atlas-ops-${host}-${stamp}.jsonl`);
+  fs.writeFileSync(tmp, dump);
+  const dest = `b2:${BUCKET}/YT-MAIN/00_APPS/inbox-mac/ops/${host}-${stamp}.jsonl`;
+  const bin = jobs.findRcloneBin();
+  const run = spawnSync(bin, ["copyto", tmp, dest, "--retries", "2"], { encoding: "utf8", windowsHide: true });
+  if (run.status !== 0) {
+    throw new Error((run.stderr || run.stdout || "rclone log").slice(-300));
+  }
+  ops.write("info", "ops_shipped", { dest });
+  return { ok: true, dest };
 }
 
 function safeRenameRel(rel, newName) {
@@ -962,8 +981,15 @@ const server = http.createServer(async (req, res) => {
         return;
       }
       try {
-        json(res, 200, await scanUpload(srcPath, destPrefix));
+        const scan = await scanUpload(srcPath, destPrefix);
+        ops.write("info", "scan", {
+          destPrefix,
+          files: scan.localFiles,
+          collisions: (scan.collisions || []).length,
+        });
+        json(res, 200, scan);
       } catch (err) {
+        ops.write("error", "scan_fail", { destPrefix, error: err.message });
         json(res, 400, { error: err.message || "scan failed" });
       }
       return;
@@ -1017,9 +1043,17 @@ const server = http.createServer(async (req, res) => {
           extras,
           skipMainCopy: remaining.length === 0,
         });
+        ops.write("info", "job_start", {
+          id: job.id,
+          destPrefix,
+          files: remaining.length,
+          skip: skipSet.size,
+          rename: extras.length,
+        });
         json(res, 200, job);
       } catch (err) {
         const msg = String(err.message || "job failed");
+        ops.write("error", "job_fail", { destPrefix, error: msg });
         const bad =
           /not allowed|não encontrada|inválida|bad bucket|missing srcPath/.test(msg);
         json(res, bad ? 400 : 500, { error: msg });
@@ -1067,8 +1101,27 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    if (req.method === "GET" && url.pathname === "/api/ops") {
+      json(res, 200, { events: ops.tail(Number(url.searchParams.get("n") || 80)) });
+      return;
+    }
+
+    if (req.method === "POST" && url.pathname === "/api/ops/ship") {
+      try {
+        json(res, 200, await shipOps());
+      } catch (err) {
+        json(res, 500, { error: err.message || "não mandou o log" });
+      }
+      return;
+    }
+
     if (isApi) {
-      json(res, 404, { error: "not found" });
+      ops.write("warn", "api_404", { path: url.pathname, method: req.method });
+      json(res, 404, {
+        error: "not found",
+        path: url.pathname,
+        hint: "servidor velho na memória — fecha, clica de novo no ATLAS Inbox",
+      });
       return;
     }
 
@@ -1091,6 +1144,7 @@ const server = http.createServer(async (req, res) => {
       ...extra,
     });
   } catch (err) {
+    ops.write("error", "request_fail", { path: url.pathname, method: req.method, error: err.message });
     console.error(new Date().toISOString(), req.method, url.pathname, err.message);
     if (!res.headersSent) {
       const status = err.status && err.status < 500 ? err.status : 500;

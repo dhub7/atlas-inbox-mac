@@ -55,7 +55,9 @@ async function api(path, opts = {}) {
     ...opts,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  if (!res.ok) {
+    throw new Error(data.hint || data.error || res.statusText);
+  }
   return data;
 }
 
@@ -542,6 +544,16 @@ document.getElementById("dupes-go").addEventListener("click", async () => {
     sendHint.textContent = ex.message || "não começou o envio";
   } finally {
     btn.disabled = false;
+  }
+});
+
+document.getElementById("btn-ship-log")?.addEventListener("click", async () => {
+  sendHint.textContent = "mandando log…";
+  try {
+    const r = await api("/api/ops/ship", { method: "POST", body: "{}" });
+    sendHint.textContent = r.skipped ? "log vazio" : "log foi pra nuvem (ops). Daniel puxa no GitHub.";
+  } catch (ex) {
+    sendHint.textContent = ex.message || "não mandou o log";
   }
 });
 

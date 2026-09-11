@@ -36,6 +36,7 @@ $pack = @(
   "rclone-job.mjs",
   "scan-dupes.mjs",
   "thumbs.mjs",
+  "ops-log.mjs",
   "update-then-open.sh",
   "install-mac.sh",
   "ATLAS Inbox.command",

@@ -4,7 +4,7 @@ Sem `$()`. Se o envio ainda estiver rodando, o script avisa e não mata.
 
 ```
 cd ~/ATLAS/inbox-mac
-rclone copy b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/current/ ~/ATLAS/inbox-mac/ --exclude .env --exclude data/**
+rclone copy b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/current/ ~/ATLAS/inbox-mac/ --exclude '.env' --exclude 'data/**'
 cp ~/ATLAS/inbox-mac/ATLAS\ Inbox.command ~/Desktop/
 chmod +x ~/ATLAS/inbox-mac/update-then-open.sh ~/Desktop/ATLAS\ Inbox.command
 ```

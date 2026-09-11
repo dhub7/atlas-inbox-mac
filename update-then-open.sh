@@ -11,11 +11,29 @@ envio_em_curso() {
     fetch("http://127.0.0.1:8088/api/jobs")
       .then((r) => r.json())
       .then((d) => {
-        const live = (d.jobs || []).some((j) => j.status === "running" || j.status === "queued");
+        const live = (d.jobs || []).some((j) => j.status === "running" || j.status === "queued" || j.status === "paused");
         process.exit(live ? 1 : 0);
       })
       .catch(() => process.exit(0));
   ' >/dev/null 2>&1
+}
+
+restart_node() {
+  launchctl kickstart -k "gui/$(id -u)/com.atlas.inbox" >/dev/null 2>&1 || /usr/bin/killall node >/dev/null 2>&1 || true
+  sleep 1
+}
+
+disk_version() {
+  tr -d '[:space:]' < "${APP}/VERSION" 2>/dev/null || true
+}
+
+live_version() {
+  curl -fsS "http://127.0.0.1:8088/health" 2>/dev/null | node -e '
+    let s=""; process.stdin.on("data",d=>s+=d); process.stdin.on("end",()=>{
+      try { const j=JSON.parse(s); process.stdout.write(String(j.version||"")); }
+      catch { /* ignore */ }
+    });
+  ' 2>/dev/null || true
 }
 
 update() {
@@ -36,17 +54,26 @@ update() {
   osascript -e 'display notification "ATLAS Inbox vai atualizar" with title "ATLAS"' >/dev/null 2>&1 || true
   rclone copy "${REMOTE}/current/" "${APP}/" \
     --checksum --fast-list --retries 2 \
-    --exclude ".env" \
-    --exclude "data/**" \
-    --exclude "bin/**" \
-    --exclude ".git/**" \
+    --exclude '.env' \
+    --exclude 'data/**' \
+    --exclude 'bin/**' \
+    --exclude '.git/**' \
     >/dev/null 2>&1 || true
   chmod +x "${APP}/update-then-open.sh" "${HOME}/Desktop/ATLAS Inbox.command" 2>/dev/null || true
-  launchctl kickstart -k "gui/$(id -u)/com.atlas.inbox" >/dev/null 2>&1 || killall node >/dev/null 2>&1 || true
-  sleep 1
+  restart_node
 }
 
 update
+
+# JS novo + Node velho na memoria = API "not found"
+if ! envio_em_curso; then
+  disk="$(disk_version)"
+  live="$(live_version)"
+  if [ -n "${disk}" ] && [ "${live}" != "${disk}" ]; then
+    osascript -e 'display notification "Reiniciando o Inbox pra casar a versao" with title "ATLAS"' >/dev/null 2>&1 || true
+    restart_node
+  fi
+fi
 
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   curl -fsS "http://127.0.0.1:8088/health" >/dev/null 2>&1 && break

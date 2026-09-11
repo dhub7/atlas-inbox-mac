@@ -10,7 +10,7 @@ echo "$busy" | grep -q '"status":"running"' && {
 }
 
 rclone copy "b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/current/" "$HOME/ATLAS/inbox-mac/" \
-  --checksum --exclude ".env" --exclude "data/**" --exclude "bin/**" --exclude ".git/**"
+  --checksum --exclude '.env' --exclude 'data/**' --exclude 'bin/**' --exclude '.git/**'
 
 cp "$HOME/ATLAS/inbox-mac/ATLAS Inbox.command" "$HOME/Desktop/ATLAS Inbox.command"
 chmod +x "$HOME/ATLAS/inbox-mac/update-then-open.sh" "$HOME/Desktop/ATLAS Inbox.command"
