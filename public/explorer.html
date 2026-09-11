@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>ATLAS Drive</title>
+  <link rel="stylesheet" href="/explorer.css?v=11" />
+</head>
+<body>
+  <section id="gate" class="win">
+    <div class="title">ATLAS Drive</div>
+    <div class="body">
+      <p>Digite a chave do link pra ver as pastas.</p>
+      <form id="login">
+        <input id="token" type="password" autocomplete="off" />
+        <button type="submit">OK</button>
+      </form>
+      <p class="err" id="login-err"></p>
+    </div>
+  </section>
+
+  <section id="app" class="desktop hidden">
+    <div class="win explorer">
+      <div class="title">
+        <span id="win-title">Explorando — Inbox</span>
+        <a class="x" href="/">×</a>
+      </div>
+      <div class="menubar">Arquivo&nbsp;&nbsp;Editar&nbsp;&nbsp;Exibir&nbsp;&nbsp;Ajuda</div>
+      <div class="toolbar">
+        <button type="button" id="btn-back">Voltar</button>
+        <button type="button" id="btn-up">Um nível acima</button>
+        <button type="button" id="btn-new">Nova pasta</button>
+        <button type="button" id="btn-cut">Recortar</button>
+        <button type="button" id="btn-paste">Colar</button>
+        <button type="button" id="btn-rename">Renomear</button>
+        <button type="button" id="btn-del">Excluir</button>
+        <span class="sep"></span>
+        <button type="button" id="btn-icons" class="on">Ícones</button>
+        <button type="button" id="btn-list">Lista</button>
+        <span class="addr-label">Endereço</span>
+        <input id="addr" readonly />
+      </div>
+      <div id="help" class="dlg help hidden">
+        <div class="title">Como usar o ATLAS Drive</div>
+        <div class="body">
+          <p>Isto é o arquivo. Pastas à esquerda, arquivos à direita.</p>
+          <ul>
+            <li><b>Um clique</b> na pasta — entra. No arquivo — vê ao lado (imagem/vídeo) ou seleciona.</li>
+            <li><b>Dois cliques</b> no arquivo — abre/baixa.</li>
+            <li><b>Ícones / Lista</b> — troca a vista. Tamanho da pasta aparece sozinho.</li>
+            <li><b>Últimos inseridos</b> (faixa de cima) — o que acabou de subir. Um clique vai pra pasta.</li>
+            <li><b>Nova pasta</b> — cria pasta aqui.</li>
+            <li><b>Organizar</b> — arrasta o arquivo em cima da pasta, ou Recortar → entra na pasta → Colar.</li>
+            <li><b>Renomear / Excluir</b> — seleciona o item, depois o botão.</li>
+          </ul>
+          <p>Pra <b>enviar</b> arquivo novo, volta pro Inbox. Apagar some de verdade no arquivo.</p>
+          <div class="dlg-btns">
+            <button type="button" id="help-ok">OK</button>
+          </div>
+        </div>
+      </div>
+      <div id="dlg" class="dlg hidden">
+        <div class="title" id="dlg-title">Nova pasta</div>
+        <div class="body">
+          <input id="dlg-name" maxlength="80" />
+          <div class="dlg-btns">
+            <button type="button" id="dlg-ok">OK</button>
+            <button type="button" id="dlg-cancel">Cancelar</button>
+          </div>
+        </div>
+      </div>
+      <div class="recent-pane">
+        <div class="recent-head">Últimos inseridos</div>
+        <div id="recent" class="recent-list">carregando...</div>
+      </div>
+      <div class="panes">
+        <aside id="tree" class="tree"></aside>
+        <div class="list-wrap" id="list-wrap">
+          <div class="cols" id="cols">
+            <span>Nome</span><span>Tamanho</span><span>Tipo</span><span>Modificado</span>
+          </div>
+          <div id="list" class="list icons"></div>
+        </div>
+        <aside class="preview" id="preview">
+          <div class="preview-empty">Clica num arquivo pra ver.</div>
+        </aside>
+      </div>
+      <div class="status" id="status">0 objeto(s)</div>
+    </div>
+  </section>
+  <script src="/explorer.js?v=11"></script>
+</body>
+</html>
