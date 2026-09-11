@@ -1,0 +1,151 @@
+/* Mac OS 9 Platinum — mock visual only */
+:root {
+  --plat: #dddddd;
+  --plat-hi: #ffffff;
+  --plat-lo: #888888;
+  --plat-dk: #555555;
+  --desk: #666699;
+  --stripe: #dddddd;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background:
+    repeating-linear-gradient(90deg, #5c5c8a 0 2px, #666699 2px 8px),
+    #666699;
+  font: 12px Geneva, Charcoal, "Lucida Grande", Tahoma, sans-serif;
+  color: #000;
+}
+a { color: #000; }
+
+.desk { min-height: 100%; padding: 16px; }
+
+.mac-win {
+  background: var(--plat);
+  border: 1px solid #000;
+  box-shadow: 1px 1px 0 #000;
+  max-width: 1080px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 32px);
+}
+.mac-title {
+  display: grid;
+  grid-template-columns: 16px 1fr 36px;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  background: repeating-linear-gradient(
+    #fff 0 1px,
+    #c8c8c8 1px 2px
+  );
+  border-bottom: 1px solid #000;
+  font-weight: 700;
+  text-align: center;
+}
+.mac-title .close {
+  width: 13px;
+  height: 13px;
+  background: var(--plat);
+  border: 1px solid #000;
+  box-shadow: inset 1px 1px 0 #fff;
+}
+.mac-title .zoom {
+  justify-self: end;
+  width: 13px;
+  height: 13px;
+  border: 1px solid #000;
+  background: var(--plat);
+}
+.mac-bar {
+  padding: 3px 10px;
+  border-bottom: 1px solid #000;
+  background: var(--plat);
+}
+.mac-bar a { margin-right: 14px; text-decoration: none; }
+.mac-bar a:hover { text-decoration: underline; }
+
+.mac-body { display: grid; grid-template-columns: 180px 1fr; flex: 1; min-height: 0; }
+.mac-side {
+  background: #fff;
+  border-right: 1px solid #000;
+  padding: 8px 0;
+}
+.mac-side button, .mac-side .fake {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  font: inherit;
+  padding: 4px 12px;
+}
+.mac-side .on { background: #000; color: #fff; }
+
+.mac-main { padding: 10px 12px; overflow: auto; }
+.mac-main h1 { font-size: 18px; margin: 0 0 8px; }
+.mac-lead { margin: 0 0 12px; }
+
+.plat-btn {
+  font: inherit;
+  background: var(--plat);
+  border: 1px solid #000;
+  border-radius: 4px;
+  padding: 4px 14px;
+  box-shadow: inset 1px 1px 0 #fff, inset -1px -1px 0 #999;
+  cursor: default;
+}
+.plat-btn.default { box-shadow: 0 0 0 3px #000, inset 1px 1px 0 #fff; font-weight: 700; }
+
+.well {
+  background: #fff;
+  border: 1px solid #000;
+  box-shadow: inset 1px 1px 0 #999;
+  padding: 12px;
+  margin: 0 0 12px;
+  min-height: 90px;
+}
+.icons {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(92px, 1fr));
+  gap: 12px;
+  padding: 8px;
+}
+.icon {
+  text-align: center;
+  font-size: 11px;
+}
+.icon .g {
+  font-size: 36px;
+  line-height: 1.1;
+}
+.progress {
+  height: 14px;
+  border: 1px solid #000;
+  background: #fff;
+  margin: 8px 0;
+  overflow: hidden;
+}
+.progress > i {
+  display: block;
+  height: 100%;
+  width: 42%;
+  background: repeating-linear-gradient(
+    -45deg,
+    #000 0 6px,
+    #fff 6px 12px
+  );
+}
+.row {
+  display: grid;
+  grid-template-columns: 1.6fr 0.6fr 0.8fr;
+  padding: 3px 6px;
+  border-bottom: 1px dotted #aaa;
+}
+.row.head { font-weight: 700; background: var(--plat); }
+.note {
+  margin-top: 16px;
+  font-size: 11px;
+  color: #333;
+}
