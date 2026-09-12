@@ -113,6 +113,7 @@ async function boot() {
     renderTree();
     await loadRecent();
     await openDir(prefix, false);
+    api("/api/ops/ship", { method: "POST", body: "{}" }).catch(() => {});
   } catch {
     gate.classList.remove("hidden");
     app.classList.add("hidden");
@@ -486,6 +487,25 @@ document.getElementById("btn-up").addEventListener("click", () => {
 
 document.getElementById("help-ok").addEventListener("click", () => {
   document.getElementById("help").classList.add("hidden");
+});
+document.getElementById("ops-log-ok")?.addEventListener("click", () => {
+  document.getElementById("ops-log").classList.add("hidden");
+});
+document.getElementById("btn-log")?.addEventListener("click", async () => {
+  const box = document.getElementById("ops-log");
+  const body = document.getElementById("ops-log-body");
+  box.classList.remove("hidden");
+  body.textContent = "carregando...";
+  try {
+    const data = await api("/api/ops?n=80");
+    const lines = (data.events || []).map((e) => {
+      const t = String(e.ts || "").replace("T", " ").slice(0, 19);
+      return `${t}  ${e.event}${e.prefix || e.key || e.from ? "  " + (e.prefix || e.key || e.from) : ""}`;
+    });
+    body.textContent = lines.length ? lines.join("\n") : "nada ainda";
+  } catch (ex) {
+    body.textContent = ex.message || "não carregou";
+  }
 });
 
 btnIcons.addEventListener("click", () => {

@@ -37,11 +37,21 @@
         <button type="button" id="btn-paste">Colar</button>
         <button type="button" id="btn-rename">Renomear</button>
         <button type="button" id="btn-del">Excluir</button>
+        <button type="button" id="btn-log">Log</button>
         <span class="sep"></span>
         <button type="button" id="btn-icons" class="on">Ícones</button>
         <button type="button" id="btn-list">Lista</button>
         <span class="addr-label">Endereço</span>
         <input id="addr" readonly />
+      </div>
+      <div id="ops-log" class="dlg help hidden">
+        <div class="title">Log do Drive</div>
+        <div class="body">
+          <pre id="ops-log-body" style="white-space:pre-wrap;max-height:240px;overflow:auto;font-size:12px"></pre>
+          <div class="dlg-btns">
+            <button type="button" id="ops-log-ok">OK</button>
+          </div>
+        </div>
       </div>
       <div id="help" class="dlg help hidden">
         <div class="title">Como usar o ATLAS Drive</div>
@@ -91,6 +101,6 @@
       <div class="status" id="status">0 objeto(s)</div>
     </div>
   </section>
-  <script src="/explorer.js?v=11"></script>
+  <script src="/explorer.js?v=14"></script>
 </body>
 </html>

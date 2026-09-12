@@ -13,7 +13,11 @@ cd Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac
 
 Abre `http://127.0.0.1:8088` — chave está no `.env` (não manda no grupo).
 
-## No Mac dele (na call)
+## No Mac da Erica (na call)
+
+Cola `ERICA_TERMINAL.md`. É `install-drive.sh`, não `install-mac.sh`.
+
+## No Mac do Victor (já feito, não repetir)
 
 1. Copia a pasta `inbox-mac` inteira (AirDrop / pendrive). Não precisa do `bin\` do Windows.
 2. Terminal:

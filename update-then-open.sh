@@ -59,7 +59,10 @@ update() {
     --exclude 'bin/**' \
     --exclude '.git/**' \
     >/dev/null 2>&1 || true
-  chmod +x "${APP}/update-then-open.sh" "${HOME}/Desktop/ATLAS Inbox.command" 2>/dev/null || true
+  chmod +x "${APP}/update-then-open.sh" "${APP}/enviar-b2.sh" \
+    "${HOME}/Desktop/ATLAS Inbox.command" \
+    "${HOME}/Desktop/ATLAS Drive.command" \
+    "${HOME}/Desktop/ATLAS Mandar B2.command" 2>/dev/null || true
   restart_node
 }
 
@@ -80,8 +83,17 @@ for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
   sleep 0.4
 done
 
+case "${ATLAS_OPEN:-}" in
+  /drive) OPEN="/drive" ;;
+  *) OPEN="" ;;
+esac
+
+if [ "${ATLAS_SKIP_OPEN:-}" = "1" ]; then
+  exit 0
+fi
+
 if [ -x "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" ]; then
-  open -na "Google Chrome" --args --app="http://127.0.0.1:8088"
+  open -na "Google Chrome" --args --app="http://127.0.0.1:8088${OPEN}"
 else
-  open "http://127.0.0.1:8088"
+  open "http://127.0.0.1:8088${OPEN}"
 fi

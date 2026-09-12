@@ -7,8 +7,8 @@ $gh = Join-Path $here "bin\gh.exe"
 $dest = Join-Path $here "data\ops-from-b2"
 New-Item -ItemType Directory -Force -Path $dest | Out-Null
 & $rclone copy "b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/ops/" $dest --retries 3
-$files = Get-ChildItem $dest -Filter *.jsonl
-if (-not $files) { Write-Host "nenhum log no B2 ainda (Victor clica Mandar log)"; exit 0 }
+$files = Get-ChildItem $dest -File | Where-Object { $_.Extension -in ".jsonl", ".log" }
+if (-not $files) { Write-Host "nenhum log no B2 ainda"; exit 0 }
 $body = New-Object System.Text.StringBuilder
 [void]$body.AppendLine("Logs Inbox (redacted).")
 foreach ($f in $files | Sort-Object LastWriteTime -Descending | Select-Object -First 5) {

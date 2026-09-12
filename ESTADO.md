@@ -1,118 +1,132 @@
-# Inbox local — memória desta frente
+# Inbox + Drive — memória canônica
 
-**Atualizado:** 2026-09-11 (update no clique, v `2026.09.11.1`)  
-**Pasta:** `07_Execucao/B0_Infra/inbox-mac/`  
-**Windows (fonte da verdade do código):** `C:\Users\Daniel\Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac`  
-**Mac do Victor (instalação):** `~/ATLAS/inbox-mac` + ícone `~/Desktop/ATLAS Inbox.command`
+**Atualizado:** 2026-09-12  
+**Código (Windows):** `C:\Users\Daniel\Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac`  
+**GitHub privado:** https://github.com/dhub7/atlas-inbox-mac  
+**B2 app:** `b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/` (`version.txt` + `current/`)  
+**Versão local:** `2026.09.12.1` (Erica Drive; ainda não precisa publicar no Mac do Victor)  
+**Mac Victor:** `~/ATLAS/inbox-mac` · ícone Desktop `ATLAS Inbox.command` — **não mexer**  
+**Mac Erica:** `bash install-drive.sh` · cola em `ERICA_TERMINAL.md`  
+**Handoff sessão:** `~\.claude\session-data\2026-09-12-atlas-inbox-drive-session.tmp`
 
-O código no Windows **está na frente** do Mac. Recopiar a pasta e `killall node` no Mac quando for levar thumbs, duplicados, progresso e o Drive Win98 certo.
+Junction: `Desktop\Projeto Victor` → `Projeto Vitor`.
 
 ---
 
+## Atualizar sem ela mexer
+
+Daniel: `.\publicar.ps1` nesta pasta. Erica: clica **ATLAS Drive** ou **Mandar B2** — o ícone puxa `00_APPS/inbox-mac/current/`. Sem git no Mac dela. Sem AirDrop.
+
+Log do Mandar sobe sozinho pra `YT-MAIN/00_APPS/inbox-mac/ops/`. Daqui: `.\puxar-logs.ps1`. No Drive, botão **Log**.
+
+## Erica agora (essencial)
+
+Footage **já está no Mac dela** → pasta `~/ATLAS/TRANSFER` → clique **Mandar pro B2** → `YT-MAIN/00_INBOX/{hoje}/`. Drive = ícone **ATLAS Drive** (`/drive`). Inbox stand-by. Call: `ERICA_TERMINAL.md`.
+
 ## O que é
 
-App **neste computador** (Windows ou Mac): Inbox envia pasta via `rclone copy` pro Backblaze `atlas-victor-bruto`. Drive organiza o que já está lá. Só escuta `127.0.0.1`. LucidLink não se mexe.
+App **local** (Mac/Windows): pasta TRANSFER + `rclone copy` → bucket `atlas-victor-bruto`. Drive lista/organiza o B2. Só `127.0.0.1`. LucidLink = outro disco (proxies Resolve). **Não misturar.**
 
-Não é o site Hetzner `:8088` (browser upload, cai em TB). Aquele continua pra arquivo solto.
+Hetzner `:8088` = arquivo solto no browser. **Não** dump TB / arquivo 10 GB+.
 
-## Visual — não misturar
+10 GB+: no Inbox local **sim** (rclone em fatias, B2 large file). Não testámos empiricamente um clip de 10 GB; GoPro do Victor era menor.
 
-Fonte: `07_Execucao/B0_Infra/inbox/public/` (o que está no ar no Hetzner).
+---
 
-| Superfície | Pele |
-|---|---|
-| Inbox `/` | papel, IBM Plex, Source Serif, navy |
-| Drive `/drive` | Windows 98 (teal `#008080`, Tahoma, bisel) |
-
-São duas peles de propósito. Feature nova só **acrescenta** CSS no fim. Não unificar o Drive no papel.
-
-## O que já funciona (testado neste Windows)
-
-- Servidor Node `127.0.0.1:8088`, login dispensado em loopback
-- Escolher pasta nativa (Finder no Mac / diálogo no Windows)
-- `rclone copy` sem `--delete`; retoma o que já subiu
-- Barra de envio: %, tamanho, velocidade, tempo, ETA
-- Drive: um clique entra na pasta; ícones/lista; tamanho de pasta; thumb de vídeo (ffmpeg, cache em `data/thumbs/`); preview grande
-- Duplicados: mesmo nome+tamanho → ignorar / substituir / outro nome (`arquivo (2).ext`)
-- Teste real no B2: smoke + rename `smoke-windows (2).txt`
-
-## Mac do Victor (10–11/09)
-
-- Homebrew, node, rclone **instalados**. `rclone lsd` viu `YT-MAIN` e `dropbox-mirror`.
-- LaunchAgent subiu (segunda `node` deu `EADDRINUSE` = já estava no ar).
-- `ATLAS Inbox.command` existe no Desktop (não é app da Loja).
-- Chrome abriu o Inbox. Ele já mandou OZARK (GoPro/WAV em `YT-MAIN/00_INBOX/2026-09-11/OZARK/`).
-- PDF `Sobe_OZARK_no_Backblaze.pdf` **não usar** — colar o PDF no Terminal quebra (`zsh: bad pattern`, `[200~`).
-- Popup “Backblaze Permissions Issue” = app de **backup** do Mac, não o B2. Fechar.
-
-## OZARK
-
-Episódio/lugar (~3 TB RAW). Não está no Dropbox compartilhado. Pedacinho já no B2 (08/09 pelo site, 11/09 pelo Inbox). Os 3 TB provavelmente em HD, não no SSD. O app aponta qualquer pasta.
-
-## Como rodar
-
-**Windows (Daniel):** `.\start-windows.ps1` → http://127.0.0.1:8088  
-**Mac (depois de recopiar):** `killall node` (LaunchAgent sobe de novo) → ícone no Desktop.
-
-Não colar comando com `$()` no Terminal do Victor (bracketed paste).
-
-## Arquivos
-
-| Arquivo | Papel |
-|---|---|
-| `server.mjs` | HTTP local + B2 Drive API + scan/jobs |
-| `rclone-job.mjs` | copy sem `--delete`, progresso `\r` |
-| `scan-dupes.mjs` | nome+tamanho → skip/replace/rename |
-| `thumbs.mjs` | ffmpeg 1 frame, fila 2, cache |
-| `install-mac.sh` | brew, rclone, LaunchAgent, ícone |
-| `public/` | Inbox + Drive |
-| `.env` | gitignore; não grupo |
-
-Testes: `node --test test/rclone-job.test.mjs test/scan-dupes.test.mjs`
-
-## Não fazer
-
-- Telegram sem **manda**
-- `--delete` no rclone
-- Porta na Starlink
-- Lucid / 598
-- Logar conta Grok/Claude no Mac dele
-- Mandar chave B2 no grupo
-- Recortar Shorts neste fio
-- Tratar o PDF como instalador
-
-## Publicar daqui (Daniel)
+## Como se publica (Daniel)
 
 ```
-cd Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac
+cd "C:\Users\Daniel\Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac"
 .\publicar.ps1
 ```
 
-Sobe GitHub (quando houver remote) + B2 `YT-MAIN/00_APPS/inbox-mac/`. Fora da allowlist do Drive.
+GitHub **e** B2. Sem `.env`, sem `bin/`, sem `data/`.
 
-GitHub CLI está em `bin\gh.exe` mas **não logado**. Uma vez:
+Victor: dois cliques no ícone. Se `version.txt` ≠ disco → notifica, `rclone copy` (não sync), reinicia Node se **não** houver job running/queued/**paused**.
 
-```
-bin\gh.exe auth login
-bin\gh.exe repo create atlas-inbox-mac --private --source=. --remote=origin --push
-```
+---
 
-## Última vez no Mac (bootstrap do updater)
+## Visual
 
-O `.env` e o LaunchAgent **ficam**. No Terminal dele, sem `$()`:
+**As duas telas = Mac OS 9 Platinum** (cinza, title listrado, desktop roxo). Daniel curtiu o mock e unificou Inbox+Drive nisso.
 
-```
-rclone copy b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/current/ ~/ATLAS/inbox-mac/ --exclude .env --exclude data/**
-chmod +x ~/ATLAS/inbox-mac/update-then-open.sh
-chmod +x ~/Desktop/ATLAS\ Inbox.command
-killall node
-```
+Mocks extra (não funcionam): `/looks.html`, `/mac9-inbox.html`, `/mac9-drive.html`.
 
-Copiar também o `ATLAS Inbox.command` novo pro Desktop (o da pasta `current`). Depois disso, só clica. Se tiver versão nova, notifica e atualiza.
+Hetzner inbox/public ainda é papel + Drive Win98 — **não** é o app do Mac.
 
-## Próximo nesta frente
+---
 
-1. Bootstrap no Mac (bloco acima) — última entrada remota
-2. Daqui: `.\publicar.ps1` e pedir pra ele clicar de novo (tem que aparecer a versão no canto)
-3. `gh auth login` + repo privado quando der
-4. Dump grande do HD OZARK
+## O que já funciona
+
+- Loopback sem pedir chave
+- Escolher pasta nativa (Finder / diálogo Windows)
+- `rclone copy` **sem** `--delete`; retoma o que já subiu
+- Duplicados: mesmo nome+tamanho → ignorar / substituir / outro nome `(2)`
+- Progresso: %, GB, velocidade, ETA (`\r` do rclone)
+- Drive: clique entra; ícones/lista; du de pasta; thumb ffmpeg (fila 2); preview
+- Jobs: pausar / cancelar / retomar / reiniciar / verificar / zerar thumbs
+- Log: `data/ops.jsonl` (redacted). Botão **Mandar log** → B2 `00_APPS/inbox-mac/ops/`. Daqui: `.\puxar-logs.ps1` → issue GitHub
+- Allowlist Drive **não** inclui `00_APPS` (pacote do app invisível)
+- GitHub: `dhub7` logado; repo criado e push ok (`a906108` … `789c25d`)
+
+## Mac Victor — fatos
+
+- Homebrew, node, rclone instalados. `rclone lsd` vê `YT-MAIN` e `dropbox-mirror`
+- LaunchAgent `com.atlas.inbox` (KeepAlive). `EADDRINUSE` = Node já no ar (bom)
+- Updater **instalado** (12/09): `update-then-open.sh` existe; `chmod` ok
+- Dois ícones no Desktop: ficar o **comando** cujo conteúdo tem `update-then-open.sh`; lixo o antigo
+- OZARK: pedaços no B2 `YT-MAIN/00_INBOX/2026-09-08/` e `2026-09-11/OZARK/`. ~3 TB RAW no HD, não no Dropbox
+- Popup “Backblaze Permissions” = **backup** do Mac, não B2. Fechar
+
+## MCP B2 (Grok, 12/09)
+
+- Oficial `@backblaze-labs/b2-mcp` **0.2.1**
+- Launcher: `C:\Users\Daniel\.grok\mcp\b2-mcp-launch.ps1` lê rclone `[b2]`, **não** grava chave no `config.toml`
+- `B2_DESTRUCTIVE_POLICY=confirm`
+- `grok mcp doctor backblaze-b2`: 37 tools, handshake OK
+- **Precisa de sessão Grok nova** pra as tools aparecerem neste chat
+
+---
+
+## Armadilhas (não repetir)
+
+| Sintoma | Causa | Correção |
+|---|---|---|
+| `zsh: no matches found: data/**` | zsh come `**` | `--exclude 'data/**'` **com aspas** |
+| `cp: command not found` | `export PATH=...$PATH0` (zero) tirou `/bin` | PATH com `/usr/bin:/bin`; usar `/bin/cp` |
+| `zsh: bad pattern` `[200~` | colar PDF ou `$()` | uma linha; sem eval brew se PATH já tem homebrew |
+| `not found` no Enviar | JS novo + Node **velho na RAM** | clique no ícone (updater 11.6 compara health vs VERSION); se falhar `/usr/bin/killall node` **só sem upload** |
+| Bootstrap não reiniciou Node | disco já era a mesma versão da nuvem | 11.6: se live ≠ disk, restart |
+| Dois ícones | `cp` do `.command` + atalho antigo | um só: o que tem `update-then-open.sh` |
+| Pause não para | SIGSTOP no `caffeinate`, rclone filho segue | **ainda aberto** (plano revisão P0) |
+| Thumbs 🎬 no Mac | `brew install ffmpeg` **não** está no install | **ainda aberto** |
+| `rclone copyto` + `--exclude` | filters vs single file | copyto **sem** exclude |
+| Progresso 0% | rclone escreve `\r` | `parseProgressChunk` |
+
+PDF `Sobe_OZARK_no_Backblaze.pdf` **aposentado**. Telegram quieto até **manda**. Sem `--delete`. Sem porta na Starlink. Sem Grok no Mac do Victor.
+
+---
+
+## Erica M5 Max 128 GB RAM (pesquisa 12/09, plano abandonado na UI — verdades ficam)
+
+- 128 GB = **RAM**, não SSD. Não copiar o HD inteiro no boot sem medir.
+- Mais rápido/seguro: Thunderbolt HD → volume INGEST na Erica → `rclone copy` (não sync delete) → B2. HD não formata até checksum.
+- MCP oficial no Grok (já instalado). Infimount = piloto UI, MCP **off**, nunca no RAW master.
+- Lucid = proxy. Suite/ExpanDrive no RAW = armadilha.
+
+---
+
+## Revisão Inbox/Drive — ainda NÃO feito (próxima janela)
+
+P0: ffmpeg no Mac; pause no processo rclone de verdade; verify 3 TB = size-only default; update bloqueia também `paused`.  
+P1: Inbox só envia (sem mini-Drive); busca na pasta; lixeira `00_TRASH`; “net caiu” / “liga o HD”.  
+P2: thumbs só visíveis; du de pasta enorme sob demanda; preview sem preload de 10 vídeos; fila de jobs.
+
+---
+
+## Próximo clique (nova janela)
+
+1. Call Erica: colar `ERICA_TERMINAL.md`
+2. AirDrop da pasta `inbox-mac` (sem bin/env/data)
+3. Teste: 1 arquivo em `~/ATLAS/TRANSFER` → Mandar pro B2 → Drive
+4. Victor não se mexe. Não publicar nesta fatia a menos que queira o Drive no Mac dele também.

@@ -723,6 +723,7 @@ const server = http.createServer(async (req, res) => {
       }
       await putKeep(key);
       bumpRecent();
+      ops.write("info", "mkdir", { prefix: `${prefix}${name}/` });
       json(res, 200, { ok: true, prefix: `${prefix}${name}/`, name });
       return;
     }
@@ -755,6 +756,7 @@ const server = http.createServer(async (req, res) => {
           await moveFile(f.fileId, f.fileName, dest);
         }
         bumpRecent();
+        ops.write("info", "move_folder", { from: fromPrefix, to: toPrefix, n: files.length });
         json(res, 200, { ok: true, moved: files.length });
         return;
       }
@@ -776,6 +778,7 @@ const server = http.createServer(async (req, res) => {
       }
       await moveFile(fileId, from, to);
       bumpRecent();
+      ops.write("info", "move", { from, to });
       json(res, 200, { ok: true });
       return;
     }
@@ -802,6 +805,7 @@ const server = http.createServer(async (req, res) => {
           await b2("b2_delete_file_version", { fileId: f.fileId, fileName: f.fileName });
         }
         bumpRecent();
+        ops.write("info", "delete_folder", { prefix, n: files.length });
         json(res, 200, { ok: true, deleted: files.length });
         return;
       }
@@ -822,6 +826,7 @@ const server = http.createServer(async (req, res) => {
       }
       await b2("b2_delete_file_version", { fileId, fileName: fileKey });
       bumpRecent();
+      ops.write("info", "delete", { key: fileKey });
       json(res, 200, { ok: true });
       return;
     }
