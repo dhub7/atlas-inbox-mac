@@ -1,7 +1,8 @@
 #!/bin/bash
 # Sobe a pasta TRANSFER (ou o caminho passado) pro B2.
 # Nunca sync. Nunca --delete.
-# Vigia: 0 B/s por ~2 min → mata o rclone e recomeça (ignore-existing).
+# Pequenos (<500M): 4 em paralelo. Gordos (>=500M): um a um.
+# Vigia: 0 B/s ~45s → reinicia a mesma fase (ignore-existing).
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
 
@@ -57,7 +58,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Starlink: começa alto (8/8). Se cair a 0, desce. Se estabilizar, sobe de novo."
+  echo "Pequeno <500M: 4 paralelo. Gordo >=500M: um a um. Vigia 45s a 0 B/s."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -109,6 +110,7 @@ kill_rclone() {
 run_copy() {
   local tfer="$1"
   local ucon="$2"
+  shift 2
   set +e
   rclone copy "$SRC" "$DEST" \
     --progress \
@@ -132,30 +134,23 @@ run_copy() {
     --stats-one-line \
     --exclude ".DS_Store" \
     --exclude "._*" \
-    --exclude ".Trash/**" > >(tee -a "$LOG") 2>&1 &
+    --exclude ".Trash/**" \
+    "$@" > >(tee -a "$LOG") 2>&1 &
   local rpid=$!
   echo "${rpid}" > "${PIDFILE}"
   local stall=0
-  local good=0
   while kill -0 "${rpid}" 2>/dev/null; do
     sleep 15
     if stats_zero; then
       stall=$((stall + 1))
-      good=0
-      echo "vigia: 0 B/s (${stall}/8) nivel=${tfer}/${ucon}" | tee -a "$LOG"
+      echo "vigia: 0 B/s (${stall}/3) tfer=${tfer}" | tee -a "$LOG"
     else
       stall=0
-      good=$((good + 1))
     fi
-    if [ "${stall}" -ge 8 ]; then
-      echo "vigia: 2 min a 0 B/s — desço o nível e reinicio" | tee -a "$LOG"
+    if [ "${stall}" -ge 3 ]; then
+      echo "vigia: ~45s a 0 B/s — reinicio a mesma fase" | tee -a "$LOG"
       kill_rclone "${rpid}"
       return 99
-    fi
-    if [ "${LEVEL}" -lt 2 ] && [ "${good}" -ge 24 ]; then
-      echo "vigia: rede ok ~6 min — volto pro nível mais alto" | tee -a "$LOG"
-      kill_rclone "${rpid}"
-      return 98
     fi
   done
   wait "${rpid}"
@@ -164,56 +159,51 @@ run_copy() {
   return "${rc}"
 }
 
-MAX=40
-n=0
-rc=1
-LEVEL=2
-set +e
-while [ "${n}" -lt "${MAX}" ]; do
-  n=$((n + 1))
-  TFER=8
-  UCON=8
-  if [ "${LEVEL}" -eq 1 ]; then
-    TFER=4
-    UCON=4
-  fi
-  if [ "${LEVEL}" -eq 0 ]; then
-    TFER=2
-    UCON=2
-  fi
-  echo "--- tentativa ${n}/${MAX} nivel=${TFER}/${UCON} $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" | tee -a "$LOG"
-  run_copy "${TFER}" "${UCON}"
-  rc=$?
-  if [ "${rc}" -eq 0 ]; then
-    break
-  fi
-  if [ "${rc}" -eq 99 ]; then
-    if [ "${LEVEL}" -gt 0 ]; then
-      LEVEL=$((LEVEL - 1))
+run_phase() {
+  local nome="$1"
+  local tfer="$2"
+  local ucon="$3"
+  shift 3
+  local n=0
+  local MAX=40
+  local rc=1
+  echo "=== ${nome} ===" | tee -a "$LOG"
+  while [ "${n}" -lt "${MAX}" ]; do
+    n=$((n + 1))
+    echo "--- ${nome} tentativa ${n}/${MAX} $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" | tee -a "$LOG"
+    run_copy "${tfer}" "${ucon}" "$@"
+    rc=$?
+    if [ "${rc}" -eq 0 ]; then
+      echo "${nome} ok." | tee -a "$LOG"
+      return 0
     fi
-    echo "rede zumbi. Nível agora ${LEVEL}. Espero 8s." | tee -a "$LOG"
+    echo "${nome} rc=${rc}. Espero 8s e repito (não remanda o que fechou)." | tee -a "$LOG"
     sleep 8
-    continue
-  fi
-  if [ "${rc}" -eq 98 ]; then
-    if [ "${LEVEL}" -lt 2 ]; then
-      LEVEL=$((LEVEL + 1))
-    fi
-    echo "rede boa. Nível agora ${LEVEL}." | tee -a "$LOG"
-    sleep 3
-    continue
-  fi
-  echo "rclone saiu ${rc}. Espero 15s e subo de novo." | tee -a "$LOG"
-  sleep 15
-done
+  done
+  return "${rc}"
+}
+
+set +e
+run_phase "pequenos_<500M" 4 4 --max-size 500M
+rc_small=$?
+run_phase "gordos_>=500M" 1 4 --min-size 500M
+rc_big=$?
 set -e
 
-echo "fim=$(date -u +%Y-%m-%dT%H:%M:%SZ) rc=${rc} tentativas=${n}" | tee -a "$LOG"
+if [ "${rc_small}" -eq 0 ] && [ "${rc_big}" -eq 0 ]; then
+  rc=0
+elif [ "${rc_big}" -ne 0 ]; then
+  rc="${rc_big}"
+else
+  rc="${rc_small}"
+fi
+
+echo "fim=$(date -u +%Y-%m-%dT%H:%M:%SZ) rc=${rc} small=${rc_small} big=${rc_big}" | tee -a "$LOG"
 ship_log
 
 if [ "${rc}" -ne 0 ]; then
   echo
-  echo "Falhou (código ${rc}) depois de ${n} tentativas. Log no B2 (enviar-live.log)."
+  echo "Falhou (código ${rc}). Log no B2 (enviar-live.log)."
   exit "${rc}"
 fi
 
