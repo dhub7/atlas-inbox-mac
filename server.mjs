@@ -32,6 +32,7 @@ const BUCKET = process.env.B2_BUCKET || "atlas-victor-bruto";
 const PUBLIC_ORIGIN = (process.env.PUBLIC_ORIGIN || `http://127.0.0.1:${PORT}`).replace(/\/$/, "");
 const CORS_NAME = "atlasInbox";
 const BIND = process.env.BIND || "127.0.0.1";
+const DRIVE_DEFAULT = process.env.DRIVE_DEFAULT === "1";
 const APP_VERSION = (() => {
   try {
     return fs.readFileSync(path.join(here, "VERSION"), "utf8").trim();
@@ -560,8 +561,17 @@ async function bucketInfo() {
 
 async function ensureCors() {
   const bucket = await bucketInfo();
+  const extraOrigins = (process.env.CORS_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
   const origins = Array.from(
-    new Set([PUBLIC_ORIGIN, `http://127.0.0.1:${PORT}`, `http://localhost:${PORT}`])
+    new Set([
+      PUBLIC_ORIGIN,
+      `http://127.0.0.1:${PORT}`,
+      `http://localhost:${PORT}`,
+      ...extraOrigins,
+    ])
   );
   const rule = {
     corsRuleName: CORS_NAME,
@@ -1130,7 +1140,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    let rel = url.pathname === "/" ? "/index.html" : url.pathname;
+    let rel = url.pathname === "/" ? (DRIVE_DEFAULT ? "/explorer.html" : "/index.html") : url.pathname;
     if (rel === "/drive" || rel === "/drive/") rel = "/explorer.html";
     const file = safeJoin(PUBLIC, rel);
     if (!file || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {

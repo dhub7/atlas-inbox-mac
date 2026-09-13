@@ -6,15 +6,22 @@ export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
 APP="${HOME}/ATLAS/inbox-mac"
 REMOTE="b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac"
 
+aviso() {
+  osascript -e "display dialog \"$1\" buttons {\"OK\"} default button 1 with title \"ATLAS\"" >/dev/null 2>&1 || true
+}
+
 envio_em_curso() {
+  if pgrep -f "[r]clone copy" >/dev/null 2>&1; then
+    return 0
+  fi
   node -e '
     fetch("http://127.0.0.1:8088/api/jobs")
       .then((r) => r.json())
       .then((d) => {
         const live = (d.jobs || []).some((j) => j.status === "running" || j.status === "queued" || j.status === "paused");
-        process.exit(live ? 1 : 0);
+        process.exit(live ? 0 : 1);
       })
-      .catch(() => process.exit(0));
+      .catch(() => process.exit(1));
   ' >/dev/null 2>&1
 }
 
@@ -39,7 +46,7 @@ live_version() {
 update() {
   command -v rclone >/dev/null 2>&1 || return 0
   if envio_em_curso; then
-    osascript -e 'display notification "Envio em curso. Atualizo no proximo clique." with title "ATLAS"' >/dev/null 2>&1 || true
+    aviso "Tem envio no Terminal. A atualização entra no próximo clique, quando terminar."
     return 0
   fi
   local new old
@@ -51,7 +58,7 @@ update() {
   if [ "${new}" = "${old}" ]; then
     return 0
   fi
-  osascript -e 'display notification "ATLAS Inbox vai atualizar" with title "ATLAS"' >/dev/null 2>&1 || true
+  aviso "ATLAS vai atualizar agora para ${new}."
   rclone copy "${REMOTE}/current/" "${APP}/" \
     --checksum --fast-list --retries 2 \
     --exclude '.env' \
@@ -59,11 +66,15 @@ update() {
     --exclude 'bin/**' \
     --exclude '.git/**' \
     >/dev/null 2>&1 || true
-  chmod +x "${APP}/update-then-open.sh" "${APP}/enviar-b2.sh" \
-    "${HOME}/Desktop/ATLAS Inbox.command" \
-    "${HOME}/Desktop/ATLAS Drive.command" \
-    "${HOME}/Desktop/ATLAS Mandar B2.command" 2>/dev/null || true
+  chmod +x "${APP}/update-then-open.sh" "${APP}/enviar-b2.sh" 2>/dev/null || true
+  for n in "ATLAS Inbox.command" "ATLAS Drive.command" "ATLAS Mandar B2.command"; do
+    if [ -f "${HOME}/Desktop/${n}" ] && [ -f "${APP}/${n}" ]; then
+      cp "${APP}/${n}" "${HOME}/Desktop/${n}"
+      chmod +x "${HOME}/Desktop/${n}"
+    fi
+  done
   restart_node
+  aviso "ATLAS atualizado para ${new}."
 }
 
 update
@@ -73,7 +84,7 @@ if ! envio_em_curso; then
   disk="$(disk_version)"
   live="$(live_version)"
   if [ -n "${disk}" ] && [ "${live}" != "${disk}" ]; then
-    osascript -e 'display notification "Reiniciando o Inbox pra casar a versao" with title "ATLAS"' >/dev/null 2>&1 || true
+    aviso "Reiniciando o ATLAS pra casar a versão."
     restart_node
   fi
 fi

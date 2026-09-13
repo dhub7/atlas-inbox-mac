@@ -13,6 +13,10 @@ Junction: `Desktop\Projeto Victor` → `Projeto Vitor`.
 
 ---
 
+## Drive na internet
+
+URL: https://driveatlasvictor.vercel.app (capa Vercel → Hetzner :8088). Celular/PC qualquer rede. Upload continua no Mac da Erica. Redeploy Drive: `.\publicar-hetzner.ps1`. Redeploy capa: `drive-web` + `vercel --yes --prod`.
+
 ## Atualizar sem ela mexer
 
 Daniel: `.\publicar.ps1` nesta pasta. Erica: clica **ATLAS Drive** ou **Mandar B2** — o ícone puxa `00_APPS/inbox-mac/current/`. Sem git no Mac dela. Sem AirDrop.
