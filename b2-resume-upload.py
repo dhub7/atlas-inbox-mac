@@ -130,13 +130,13 @@ def list_parts(auth: dict, file_id: str) -> dict[int, dict]:
     parts: dict[int, dict] = {}
     start = 1
     while True:
-        data = b2(auth, "b2_list_parts", {"fileId": file_id, "startPartNumber": start, "maxPartCount": 10000})
+        data = b2(auth, "b2_list_parts", {"fileId": file_id, "startPartNumber": start, "maxPartCount": 1000})
         batch = data.get("parts") or []
         if not batch:
             break
         for p in batch:
             parts[int(p["partNumber"])] = p
-        if len(batch) < 10000:
+        if len(batch) < 1000:
             break
         start = int(batch[-1]["partNumber"]) + 1
     return parts
