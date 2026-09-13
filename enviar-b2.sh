@@ -58,7 +58,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pequeno <500M: 4 paralelo. Gordo >=500M: um a um. Vigia 45s a 0 B/s."
+  echo "Pasta por pasta (ordem do Finder/nome). Dentro: gordos um a um maior→menor, depois pequenos 4 paralelo."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -112,7 +112,7 @@ run_copy() {
   local ucon="$2"
   shift 2
   set +e
-  rclone copy "$SRC" "$DEST" \
+  rclone copy "${COPY_SRC:-$SRC}" "${COPY_DEST:-$DEST}" \
     --progress \
     --fast-list \
     --size-only \
@@ -184,21 +184,36 @@ run_phase() {
 }
 
 set +e
-run_phase "pequenos_<500M" 4 4 --max-size 500M
-rc_small=$?
-run_phase "gordos_>=500M" 1 4 --min-size 500M
-rc_big=$?
+rc=0
+while IFS= read -r dir; do
+  files="$(find "$dir" -maxdepth 1 -type f ! -name '.DS_Store' ! -name '._*' | wc -l | tr -d ' ')"
+  if [ "${files}" = "0" ]; then
+    continue
+  fi
+  if [ "$dir" = "$SRC" ]; then
+    COPY_SRC="$SRC"
+    COPY_DEST="$DEST"
+    nome="."
+  else
+    rel="${dir#${SRC}/}"
+    COPY_SRC="$dir"
+    COPY_DEST="${DEST}${rel}/"
+    nome="$rel"
+  fi
+  echo ">>> pasta ${nome}  arquivos=${files}" | tee -a "$LOG"
+  run_phase "${nome}/gordos" 1 4 --min-size 500M --max-depth 1
+  r1=$?
+  run_phase "${nome}/pequenos" 4 4 --max-size 500M --max-depth 1
+  r2=$?
+  if [ "${r1}" -ne 0 ]; then
+    rc="${r1}"
+  elif [ "${r2}" -ne 0 ] && [ "${rc}" -eq 0 ]; then
+    rc="${r2}"
+  fi
+done < <(find "$SRC" -type d ! -path '*/.Trash*' | sort)
 set -e
 
-if [ "${rc_small}" -eq 0 ] && [ "${rc_big}" -eq 0 ]; then
-  rc=0
-elif [ "${rc_big}" -ne 0 ]; then
-  rc="${rc_big}"
-else
-  rc="${rc_small}"
-fi
-
-echo "fim=$(date -u +%Y-%m-%dT%H:%M:%SZ) rc=${rc} small=${rc_small} big=${rc_big}" | tee -a "$LOG"
+echo "fim=$(date -u +%Y-%m-%dT%H:%M:%SZ) rc=${rc}" | tee -a "$LOG"
 ship_log
 
 if [ "${rc}" -ne 0 ]; then
