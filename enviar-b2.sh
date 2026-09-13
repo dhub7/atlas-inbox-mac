@@ -57,7 +57,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Starlink: se o % cair, é retry. 0 B/s por 2 min = o Mandar reinicia sozinho."
+  echo "Starlink: 3 arquivos / 4 partes. 0 B/s por 2 min = o Mandar reinicia sozinho."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -105,9 +105,9 @@ run_copy() {
     --size-only \
     --ignore-existing \
     --order-by size,descending \
-    --transfers 1 \
-    --checkers 1 \
-    --b2-upload-concurrency 1 \
+    --transfers 3 \
+    --checkers 2 \
+    --b2-upload-concurrency 4 \
     --b2-chunk-size 32M \
     --b2-upload-cutoff 64M \
     --multi-thread-streams 1 \
