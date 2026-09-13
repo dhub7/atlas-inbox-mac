@@ -57,7 +57,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Starlink: 3 arquivos / 4 partes. 0 B/s por 2 min = o Mandar reinicia sozinho."
+  echo "Starlink: começa alto (8/8). Se cair a 0, desce. Se estabilizar, sobe de novo."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -97,7 +97,18 @@ stats_zero() {
   echo "${line}" | grep -qE 'Transferred:.*,[[:space:]]*0 B/s|Transferred:.*,[[:space:]]*0 Byte/s'
 }
 
+kill_rclone() {
+  local rpid="$1"
+  kill "${rpid}" 2>/dev/null || true
+  sleep 2
+  kill -9 "${rpid}" 2>/dev/null || true
+  wait "${rpid}" 2>/dev/null || true
+  rm -f "${PIDFILE}"
+}
+
 run_copy() {
+  local tfer="$1"
+  local ucon="$2"
   set +e
   rclone copy "$SRC" "$DEST" \
     --progress \
@@ -105,9 +116,9 @@ run_copy() {
     --size-only \
     --ignore-existing \
     --order-by size,descending \
-    --transfers 3 \
-    --checkers 2 \
-    --b2-upload-concurrency 4 \
+    --transfers "${tfer}" \
+    --checkers 4 \
+    --b2-upload-concurrency "${ucon}" \
     --b2-chunk-size 32M \
     --b2-upload-cutoff 64M \
     --multi-thread-streams 1 \
@@ -125,22 +136,26 @@ run_copy() {
   local rpid=$!
   echo "${rpid}" > "${PIDFILE}"
   local stall=0
+  local good=0
   while kill -0 "${rpid}" 2>/dev/null; do
     sleep 15
     if stats_zero; then
       stall=$((stall + 1))
-      echo "vigia: 0 B/s (${stall}/8)" | tee -a "$LOG"
+      good=0
+      echo "vigia: 0 B/s (${stall}/8) nivel=${tfer}/${ucon}" | tee -a "$LOG"
     else
       stall=0
+      good=$((good + 1))
     fi
     if [ "${stall}" -ge 8 ]; then
-      echo "vigia: 2 min a 0 B/s — reinicio o rclone (não remanda o que já fechou)" | tee -a "$LOG"
-      kill "${rpid}" 2>/dev/null || true
-      sleep 2
-      kill -9 "${rpid}" 2>/dev/null || true
-      wait "${rpid}" 2>/dev/null || true
-      rm -f "${PIDFILE}"
+      echo "vigia: 2 min a 0 B/s — desço o nível e reinicio" | tee -a "$LOG"
+      kill_rclone "${rpid}"
       return 99
+    fi
+    if [ "${LEVEL}" -lt 2 ] && [ "${good}" -ge 24 ]; then
+      echo "vigia: rede ok ~6 min — volto pro nível mais alto" | tee -a "$LOG"
+      kill_rclone "${rpid}"
+      return 98
     fi
   done
   wait "${rpid}"
@@ -152,18 +167,40 @@ run_copy() {
 MAX=40
 n=0
 rc=1
+LEVEL=2
 set +e
 while [ "${n}" -lt "${MAX}" ]; do
   n=$((n + 1))
-  echo "--- tentativa ${n}/${MAX} $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" | tee -a "$LOG"
-  run_copy
+  TFER=8
+  UCON=8
+  if [ "${LEVEL}" -eq 1 ]; then
+    TFER=4
+    UCON=4
+  fi
+  if [ "${LEVEL}" -eq 0 ]; then
+    TFER=2
+    UCON=2
+  fi
+  echo "--- tentativa ${n}/${MAX} nivel=${TFER}/${UCON} $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" | tee -a "$LOG"
+  run_copy "${TFER}" "${UCON}"
   rc=$?
   if [ "${rc}" -eq 0 ]; then
     break
   fi
   if [ "${rc}" -eq 99 ]; then
-    echo "rede zumbi. Espero 8s e subo de novo." | tee -a "$LOG"
+    if [ "${LEVEL}" -gt 0 ]; then
+      LEVEL=$((LEVEL - 1))
+    fi
+    echo "rede zumbi. Nível agora ${LEVEL}. Espero 8s." | tee -a "$LOG"
     sleep 8
+    continue
+  fi
+  if [ "${rc}" -eq 98 ]; then
+    if [ "${LEVEL}" -lt 2 ]; then
+      LEVEL=$((LEVEL + 1))
+    fi
+    echo "rede boa. Nível agora ${LEVEL}." | tee -a "$LOG"
+    sleep 3
     continue
   fi
   echo "rclone saiu ${rc}. Espero 15s e subo de novo." | tee -a "$LOG"
