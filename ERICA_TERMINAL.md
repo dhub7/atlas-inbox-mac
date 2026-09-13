@@ -51,7 +51,7 @@ Se o footage já está em outra pasta (não precisa copiar pra TRANSFER):
 bash ~/ATLAS/inbox-mac/enviar-b2.sh "/Users/erica/CAMINHO/DA/PASTA"
 ```
 
-Mandar B2: **uma pasta de cada vez** (ordem do nome). Dentro: gordos ≥500 MB um a um (maior→menor), depois pequenos 4 em paralelo. Vigia ~45 s a 0 B/s.
+Mandar B2: **uma pasta de cada vez** (ordem do nome). Dentro: pequenos 4 em paralelo (menor→maior), depois gordos ≥500 MB um a um (menor→maior). Vigia ~45 s a 0 B/s.
 
 ## Se o Terminal mostrar ERROR / % caindo
 

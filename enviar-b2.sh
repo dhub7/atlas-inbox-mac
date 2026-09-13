@@ -58,7 +58,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta (ordem do Finder/nome). Dentro: gordos um a um maior→menor, depois pequenos 4 paralelo."
+  echo "Pasta por pasta (ordem do nome). Dentro: pequenos 4 paralelo menor→maior, depois gordos um a um menor→maior."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -117,7 +117,7 @@ run_copy() {
     --fast-list \
     --size-only \
     --ignore-existing \
-    --order-by size,descending \
+    --order-by size,ascending \
     --transfers "${tfer}" \
     --checkers 4 \
     --b2-upload-concurrency "${ucon}" \
@@ -201,9 +201,9 @@ while IFS= read -r dir; do
     nome="$rel"
   fi
   echo ">>> pasta ${nome}  arquivos=${files}" | tee -a "$LOG"
-  run_phase "${nome}/gordos" 1 4 --min-size 500M --max-depth 1
-  r1=$?
   run_phase "${nome}/pequenos" 4 4 --max-size 500M --max-depth 1
+  r1=$?
+  run_phase "${nome}/gordos" 1 4 --min-size 500M --max-depth 1
   r2=$?
   if [ "${r1}" -ne 0 ]; then
     rc="${r1}"
