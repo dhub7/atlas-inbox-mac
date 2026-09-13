@@ -42,6 +42,7 @@ $pack = @(
   "install-drive.sh",
   "enviar-b2.sh",
   "enviar-b2.ps1",
+  "b2-resume-upload.py",
   "ATLAS Inbox.command",
   "ATLAS Drive.command",
   "ATLAS Mandar B2.command",

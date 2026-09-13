@@ -5,6 +5,7 @@
 # Vigia: 0 B/s ~45s → reinicia a mesma fase (ignore-existing).
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
+HERE="$(cd "$(dirname "$0")" && pwd)"
 
 if [ "$#" -gt 1 ]; then
   echo "Só um caminho. Sem flags extra."
@@ -34,6 +35,10 @@ if ! command -v rclone >/dev/null 2>&1; then
   echo "rclone não está instalado. Roda bash install-drive.sh"
   exit 1
 fi
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 não está instalado. Roda bash install-drive.sh"
+  exit 1
+fi
 
 count="$(find "$SRC" -type f ! -name '.DS_Store' ! -name '._*' | wc -l | tr -d ' ')"
 if [ "$count" = "0" ]; then
@@ -58,7 +63,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta (ordem do nome). Dentro: pequenos 4 paralelo menor→maior, depois gordos um a um menor→maior."
+  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume de partes 32MB (não recomeça o arquivo)."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -183,6 +188,32 @@ run_phase() {
   return "${rc}"
 }
 
+run_gordos_phase() {
+  local nome="$1"
+  local n=0
+  local MAX=40
+  local rc=1
+  local prefix="${COPY_DEST#b2:atlas-victor-bruto/}"
+  echo "=== ${nome}/gordos (resume B2 32MB) ===" | tee -a "$LOG"
+  while [ "${n}" -lt "${MAX}" ]; do
+    n=$((n + 1))
+    echo "--- ${nome}/gordos tentativa ${n}/${MAX} $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" | tee -a "$LOG"
+    python3 "$HERE/b2-resume-upload.py" \
+      --src "$COPY_SRC" \
+      --b2-prefix "$prefix" \
+      --min-bytes 524288000 \
+      --max-depth 1 2>&1 | tee -a "$LOG"
+    rc="${PIPESTATUS[0]}"
+    if [ "${rc}" -eq 0 ]; then
+      echo "${nome}/gordos ok." | tee -a "$LOG"
+      return 0
+    fi
+    echo "${nome}/gordos rc=${rc}. Espero 8s (retoma partes)." | tee -a "$LOG"
+    sleep 8
+  done
+  return "${rc}"
+}
+
 set +e
 rc=0
 while IFS= read -r dir; do
@@ -203,7 +234,7 @@ while IFS= read -r dir; do
   echo ">>> pasta ${nome}  arquivos=${files}" | tee -a "$LOG"
   run_phase "${nome}/pequenos" 4 4 --max-size 500M --max-depth 1
   r1=$?
-  run_phase "${nome}/gordos" 1 4 --min-size 500M --max-depth 1
+  run_gordos_phase "${nome}"
   r2=$?
   if [ "${r1}" -ne 0 ]; then
     rc="${r1}"
