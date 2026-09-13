@@ -11,7 +11,7 @@ aviso() {
 }
 
 envio_em_curso() {
-  if pgrep -f "[r]clone copy" >/dev/null 2>&1; then
+  if pgrep -f "[r]clone copy /" >/dev/null 2>&1; then
     return 0
   fi
   node -e '
@@ -53,9 +53,11 @@ update() {
   new="$(rclone cat "${REMOTE}/version.txt" --timeout 5s --retries 1 2>/dev/null | tr -d '[:space:]')"
   old="$(tr -d '[:space:]' < "${APP}/VERSION" 2>/dev/null || true)"
   if [ -z "${new}" ]; then
+    aviso "Não consegui falar com o B2 agora. Abrindo o ATLAS que já está no Mac."
     return 0
   fi
   if [ "${new}" = "${old}" ]; then
+    aviso "ATLAS já está na versão ${old}."
     return 0
   fi
   aviso "ATLAS vai atualizar agora para ${new}."
