@@ -91,10 +91,10 @@ echo
 
 stats_zero() {
   local line
-  line="$(grep 'Transferred:' "${LOG}" 2>/dev/null | tail -1 || true)"
+  line="$(grep -E 'MiB /|GiB /|TiB /' "${LOG}" 2>/dev/null | tail -1 || true)"
   [ -n "${line}" ] || return 1
   echo "${line}" | grep -qE ', 100%' && return 1
-  echo "${line}" | grep -qE 'Transferred:.*,[[:space:]]*0 B/s|Transferred:.*,[[:space:]]*0 Byte/s'
+  echo "${line}" | grep -qE ',[[:space:]]*0 B/s|,[[:space:]]*0 Byte/s'
 }
 
 kill_rclone() {
