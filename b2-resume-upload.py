@@ -19,6 +19,7 @@ PART = 32 * 1024 * 1024
 MIN_PART = 5 * 1024 * 1024
 RETRIES = 20
 SLEEP = 8
+MAX_SLEEP = 120
 
 
 def log(msg: str) -> None:
@@ -154,9 +155,30 @@ def start_large(auth: dict, bid: str, name: str) -> str:
     return data["fileId"]
 
 
-def upload_part(auth: dict, file_id: str, part_no: int, blob: bytes, sha1: str) -> None:
-    last = None
-    for attempt in range(1, RETRIES + 1):
+def sha_of_part(p: dict) -> str:
+    raw = (p.get("contentSha1") or "").replace("unverified:", "")
+    return raw if len(raw) == 40 else ""
+
+
+def part_on_b2(auth: dict, file_id: str, part_no: int) -> str:
+    try:
+        parts = list_parts(auth, file_id)
+    except Exception as e:
+        log(f"list_parts falhou: {e}")
+        return ""
+    return sha_of_part(parts.get(part_no) or {})
+
+
+def upload_part(auth: dict, file_id: str, part_no: int, blob: bytes, sha1: str) -> str:
+    """Retry até a parte existir no B2. Pipe não desiste do arquivo.
+    Depois de cada erro, pergunta se a parte já gravou (docs B2)."""
+    attempt = 0
+    while True:
+        attempt += 1
+        got = part_on_b2(auth, file_id, part_no)
+        if got:
+            log(f"parte {part_no} já no B2 (não remitir)")
+            return got
         try:
             urls = b2(auth, "b2_get_upload_part_url", {"fileId": file_id})
             api(
@@ -172,12 +194,12 @@ def upload_part(auth: dict, file_id: str, part_no: int, blob: bytes, sha1: str) 
                 },
                 timeout=300,
             )
-            return
+            return sha1
         except Exception as e:
-            last = e
-            log(f"parte {part_no} tentativa {attempt}/{RETRIES} falhou: {e}")
-            time.sleep(SLEEP)
-    raise RuntimeError(f"parte {part_no} desistiu: {last}")
+            wait = min(SLEEP * (2 ** min(attempt - 1, 4)), MAX_SLEEP)
+            log(f"parte {part_no} tentativa {attempt} falhou: {e}")
+            log(f"espero {wait}s (não pulo o arquivo)")
+            time.sleep(wait)
 
 
 def finish(auth: dict, file_id: str, sha1s: list[str]) -> None:
@@ -253,14 +275,22 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str) -> None:
                 raise RuntimeError(f"leitura curta em {local} off={off}")
             sha = hashlib.sha1(blob).hexdigest()
             t0 = time.time()
-            upload_part(auth, file_id, part_no, blob, sha)
+            got = upload_part(auth, file_id, part_no, blob, sha)
             dt = max(time.time() - t0, 0.001)
             mbps = (ln / (1024 * 1024)) / dt
-            sha1s[part_no - 1] = sha
+            sha1s[part_no - 1] = got or sha
             log(f"parte {part_no}/{len(chunks)} {ln / (1024 * 1024):.1f} MiB ok  {mbps:.2f} MiB/s  {local.name}")
     if any(not s for s in sha1s):
         raise RuntimeError("faltou SHA1 de parte — não fecho o arquivo")
-    finish(auth, file_id, sha1s)
+    try:
+        finish(auth, file_id, sha1s)
+    except Exception as e:
+        msg = str(e)
+        if "400" in msg or "already" in msg.lower():
+            if already_complete(auth, bid, dest_name, size):
+                log(f"FECHOU {local.name} (já estava no B2 depois do timeout)")
+                return
+        raise
     log(f"FECHOU {local.name} ({size / (1024 ** 3):.2f} GiB)")
 
 
