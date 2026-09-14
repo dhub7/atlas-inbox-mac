@@ -75,6 +75,10 @@ update() {
       chmod +x "${HOME}/Desktop/${n}"
     fi
   done
+  if [ -f "${APP}/ATLAS Teste Gordo.command" ]; then
+    cp "${APP}/ATLAS Teste Gordo.command" "${HOME}/Desktop/ATLAS Teste Gordo.command"
+    chmod +x "${HOME}/Desktop/ATLAS Teste Gordo.command"
+  fi
   restart_node
   aviso "ATLAS atualizado para ${new}."
 }

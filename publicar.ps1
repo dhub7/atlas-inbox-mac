@@ -46,6 +46,7 @@ $pack = @(
   "ATLAS Inbox.command",
   "ATLAS Drive.command",
   "ATLAS Mandar B2.command",
+  "ATLAS Teste Gordo.command",
   "env.example",
   "LEIA_DANIEL.md",
   "ESTADO.md",

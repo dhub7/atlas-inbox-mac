@@ -371,13 +371,43 @@ def iter_files(src: Path, min_bytes: int, max_depth: int) -> list[Path]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--b2-prefix", required=True, help="ex: YT-MAIN/00_INBOX/2026-09-13/CANON/RAW/")
+    ap.add_argument("--b2-prefix", default="", help="ex: YT-MAIN/00_INBOX/2026-09-13/CANON/RAW/")
     ap.add_argument("--src", default="")
     ap.add_argument("--file", default="", help="um arquivo só (teste)")
+    ap.add_argument("--pick-test", action="store_true", help="escolhe um CRM grande != C904 e --fresh")
     ap.add_argument("--fresh", action="store_true", help="ignora unfinished e começa em 8MB")
     ap.add_argument("--min-bytes", type=int, default=104857600)
     ap.add_argument("--max-depth", type=int, default=1)
     args = ap.parse_args()
+    if args.pick_test:
+        args.fresh = True
+        root = Path.home() / "ATLAS" / "TRANSFER"
+        cands = []
+        if root.is_dir():
+            for p in root.rglob("*"):
+                if not p.is_file():
+                    continue
+                if "C904" in p.name:
+                    continue
+                if p.suffix.upper() not in {".CRM", ".MP4", ".MOV"}:
+                    continue
+                if p.stat().st_size < args.min_bytes:
+                    continue
+                cands.append(p)
+        cands.sort(key=lambda x: x.stat().st_size)
+        if not cands:
+            log("pick-test: nenhum CRM/MP4 >=100MB (exceto C904) em ~/ATLAS/TRANSFER")
+            return 1
+        args.file = str(cands[0])
+        rel = cands[0].relative_to(root).as_posix()
+        day = time.strftime("%Y-%m-%d")
+        parent = str(Path(rel).parent).replace("\\", "/")
+        if parent in (".", ""):
+            args.b2_prefix = f"YT-MAIN/00_INBOX/{day}/"
+        else:
+            args.b2_prefix = f"YT-MAIN/00_INBOX/{day}/{parent}/"
+        log(f"pick-test: {cands[0]}  {cands[0].stat().st_size / (1024 ** 3):.2f} GiB")
+        log(f"pick-test dest: {args.b2_prefix}")
     prefix = args.b2_prefix.strip("/") + "/"
     if args.file:
         p = Path(args.file).expanduser()
