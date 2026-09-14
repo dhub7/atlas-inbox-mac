@@ -50,6 +50,7 @@ $pack = @(
   "LEIA_DANIEL.md",
   "ESTADO.md",
   "ERICA_TERMINAL.md",
+  "COMO_FUNCIONA.md",
   "BOOTSTRAP_DEPOIS.command",
   "README.md",
   "VICTOR_TERMINAL.md",

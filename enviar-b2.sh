@@ -63,7 +63,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume de partes 32MB (não recomeça o arquivo)."
+  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume (8MB novo; retoma o tamanho que já estiver no B2)."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -194,7 +194,7 @@ run_gordos_phase() {
   local MAX=40
   local rc=1
   local prefix="${COPY_DEST#b2:atlas-victor-bruto/}"
-  echo "=== ${nome}/gordos (resume B2 32MB) ===" | tee -a "$LOG"
+  echo "=== ${nome}/gordos (resume B2) ===" | tee -a "$LOG"
   while [ "${n}" -lt "${MAX}" ]; do
     n=$((n + 1))
     echo "--- ${nome}/gordos tentativa ${n}/${MAX} $(date -u +%Y-%m-%dT%H:%M:%SZ) ---" | tee -a "$LOG"

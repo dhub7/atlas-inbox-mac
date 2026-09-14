@@ -15,7 +15,7 @@ import urllib.request
 from pathlib import Path
 
 BUCKET = "atlas-victor-bruto"
-PART = 32 * 1024 * 1024
+PART = 8 * 1024 * 1024
 MIN_PART = 5 * 1024 * 1024
 RETRIES = 20
 SLEEP = 8
