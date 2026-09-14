@@ -51,7 +51,7 @@ Se o footage já está em outra pasta (não precisa copiar pra TRANSFER):
 bash ~/ATLAS/inbox-mac/enviar-b2.sh "/Users/erica/CAMINHO/DA/PASTA"
 ```
 
-Mandar B2: pasta por pasta. Pequenos (<500 MB) rclone 4 paralelo. Gordos: API B2, resume de fatia (8 MB em arquivo novo; C904 segue 32 MB). Pipe: list_parts + backoff, não pula o arquivo.
+Mandar B2: pasta por pasta. Pequenos (<100 MB) rclone. Gordos: B2 resume, hash local no skip, C904 58 partes primeiro. Pipe: list_parts + backoff, não pula.
 
 ## Se o Terminal mostrar ERROR / % caindo
 

@@ -1,7 +1,7 @@
 #!/bin/bash
 # Sobe a pasta TRANSFER (ou o caminho passado) pro B2.
 # Nunca sync. Nunca --delete.
-# Pequenos (<500M): 4 em paralelo. Gordos (>=500M): um a um.
+# Pequenos (<100M): rclone 4 paralelo. Gordos (>=100M): B2 resume.
 # Vigia: 0 B/s ~45s → reinicia a mesma fase (ignore-existing).
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -201,7 +201,7 @@ run_gordos_phase() {
     python3 "$HERE/b2-resume-upload.py" \
       --src "$COPY_SRC" \
       --b2-prefix "$prefix" \
-      --min-bytes 524288000 \
+      --min-bytes 104857600 \
       --max-depth 1 2>&1 | tee -a "$LOG"
     rc="${PIPESTATUS[0]}"
     if [ "${rc}" -eq 0 ]; then
@@ -232,7 +232,7 @@ while IFS= read -r dir; do
     nome="$rel"
   fi
   echo ">>> pasta ${nome}  arquivos=${files}" | tee -a "$LOG"
-  run_phase "${nome}/pequenos" 4 4 --max-size 500M --max-depth 1
+  run_phase "${nome}/pequenos" 4 4 --max-size 100M --max-depth 1
   r1=$?
   run_gordos_phase "${nome}"
   r2=$?

@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import random
 import sys
 import time
 import urllib.error
@@ -20,6 +21,8 @@ MIN_PART = 5 * 1024 * 1024
 RETRIES = 20
 SLEEP = 8
 MAX_SLEEP = 120
+UA = "ATLAS-Mandar-B2/12.19"
+CREDS = {"account": "", "key": ""}
 
 
 def log(msg: str) -> None:
@@ -61,6 +64,7 @@ def read_b2_keys() -> tuple[str, str]:
 
 def api(method: str, url: str, token: str | None, body: dict | None = None, raw: bytes | None = None, headers: dict | None = None, timeout: int = 120):
     hdrs = dict(headers or {})
+    hdrs.setdefault("User-Agent", UA)
     data = None
     if raw is not None:
         data = raw
@@ -89,9 +93,23 @@ def authorize(account: str, key: str) -> dict:
     return api("GET", "https://api.backblazeb2.com/b2api/v2/b2_authorize_account", token)
 
 
+def refresh_auth(auth: dict) -> None:
+    new = authorize(CREDS["account"], CREDS["key"])
+    auth.clear()
+    auth.update(new)
+    log("reautorizei conta B2 (401/token)")
+
+
 def b2(auth: dict, path: str, body: dict, timeout: int = 120) -> dict:
     url = auth["apiUrl"].rstrip("/") + "/b2api/v2/" + path
-    return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
+    try:
+        return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
+    except RuntimeError as e:
+        if "HTTP 401" not in str(e):
+            raise
+        refresh_auth(auth)
+        url = auth["apiUrl"].rstrip("/") + "/b2api/v2/" + path
+        return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
 
 
 def bucket_id(auth: dict) -> str:
@@ -150,9 +168,25 @@ def cancel(auth: dict, file_id: str) -> None:
         log(f"aviso: não cancelei {file_id[-12:]}: {e}")
 
 
-def start_large(auth: dict, bid: str, name: str) -> str:
-    data = b2(auth, "b2_start_large_file", {"bucketId": bid, "fileName": name, "contentType": "b2/x-auto"})
+def start_large(auth: dict, bid: str, name: str, size: int, mtime_ms: int) -> str:
+    data = b2(
+        auth,
+        "b2_start_large_file",
+        {
+            "bucketId": bid,
+            "fileName": name,
+            "contentType": "b2/x-auto",
+            "fileInfo": {"src_size": str(size), "src_mtime_ms": str(mtime_ms)},
+        },
+    )
     return data["fileId"]
+
+
+def unfinished_matches(f: dict, size: int, mtime_ms: int) -> bool:
+    info = f.get("fileInfo") or {}
+    if not info.get("src_size"):
+        return True
+    return info.get("src_size") == str(size) and info.get("src_mtime_ms") == str(mtime_ms)
 
 
 def sha_of_part(p: dict) -> str:
@@ -196,9 +230,16 @@ def upload_part(auth: dict, file_id: str, part_no: int, blob: bytes, sha1: str) 
             )
             return sha1
         except Exception as e:
+            err = str(e)
+            if "HTTP 401" in err:
+                try:
+                    refresh_auth(auth)
+                except Exception as re:
+                    log(f"reauth falhou: {re}")
             wait = min(SLEEP * (2 ** min(attempt - 1, 4)), MAX_SLEEP)
+            wait = wait * (0.8 + random.random() * 0.4)
             log(f"parte {part_no} tentativa {attempt} falhou: {e}")
-            log(f"espero {wait}s (não pulo o arquivo)")
+            log(f"espero {wait:.0f}s (não pulo o arquivo)")
             time.sleep(wait)
 
 
@@ -219,19 +260,28 @@ def plan_parts(size: int, part_size: int) -> list[tuple[int, int, int]]:
     return out
 
 
-def pick_unfinished(auth: dict, files: list[dict], size: int, part_size: int) -> tuple[str | None, dict[int, dict], int]:
+def pick_unfinished(
+    auth: dict, files: list[dict], size: int, mtime_ms: int, part_size: int
+) -> tuple[str | None, dict[int, dict], int]:
     best_id = None
     best_parts: dict[int, dict] = {}
     best_ps = part_size
     for f in files:
         fid = f["fileId"]
+        if not unfinished_matches(f, size, mtime_ms):
+            log(f"unfinished {fid[-12:]} não bate size/mtime — cancelo")
+            cancel(auth, fid)
+            continue
         parts = list_parts(auth, fid)
         if not parts:
             if best_id is None:
                 best_id, best_parts, best_ps = fid, parts, part_size
             continue
-        ps = int(next(iter(parts.values())).get("contentLength") or part_size)
-        if ps < MIN_PART:
+        first = parts.get(1) or next(iter(parts.values()))
+        ps = int(first.get("contentLength") or part_size)
+        if 1 in parts and ps >= MIN_PART:
+            pass
+        elif ps < MIN_PART:
             cancel(auth, fid)
             continue
         if len(parts) > len(best_parts):
@@ -240,14 +290,16 @@ def pick_unfinished(auth: dict, files: list[dict], size: int, part_size: int) ->
 
 
 def upload_file(auth: dict, bid: str, local: Path, dest_name: str) -> None:
-    size = local.stat().st_size
+    st = local.stat()
+    size = st.st_size
+    mtime_ms = int(st.st_mtime * 1000)
     if already_complete(auth, bid, dest_name, size):
         log(f"já no B2 ({size} bytes): {dest_name}")
         return
     unfinished = list_unfinished(auth, bid, dest_name)
-    file_id, have, part_size = pick_unfinished(auth, unfinished, size, PART)
+    file_id, have, part_size = pick_unfinished(auth, unfinished, size, mtime_ms, PART)
     if file_id is None:
-        file_id = start_large(auth, bid, dest_name)
+        file_id = start_large(auth, bid, dest_name, size, mtime_ms)
         have = {}
         part_size = PART
         log(f"novo large file {local.name} {size} bytes parte={part_size}")
@@ -258,27 +310,25 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str) -> None:
         log(f"retomo {local.name}: {len(have)} partes já no B2, parte={part_size}")
     chunks = plan_parts(size, part_size)
     sha1s = [""] * len(chunks)
-    for p in have.values():
-        n = int(p["partNumber"])
-        if 1 <= n <= len(sha1s):
-            raw = (p.get("contentSha1") or "").replace("unverified:", "")
-            if len(raw) == 40:
-                sha1s[n - 1] = raw
     with local.open("rb") as fh:
         for part_no, off, ln in chunks:
-            if sha1s[part_no - 1] and len(sha1s[part_no - 1]) == 40:
-                log(f"parte {part_no}/{len(chunks)} skip (já no B2)")
-                continue
             fh.seek(off)
             blob = fh.read(ln)
             if len(blob) != ln:
                 raise RuntimeError(f"leitura curta em {local} off={off}")
-            sha = hashlib.sha1(blob).hexdigest()
+            local_sha = hashlib.sha1(blob).hexdigest()
+            remote = have.get(part_no)
+            remote_sha = sha_of_part(remote) if remote else ""
+            remote_len = int(remote.get("contentLength") or 0) if remote else 0
+            if remote_sha == local_sha and remote_len == ln:
+                sha1s[part_no - 1] = local_sha
+                log(f"parte {part_no}/{len(chunks)} skip (hash+tamanho ok)")
+                continue
             t0 = time.time()
-            got = upload_part(auth, file_id, part_no, blob, sha)
+            got = upload_part(auth, file_id, part_no, blob, local_sha)
             dt = max(time.time() - t0, 0.001)
             mbps = (ln / (1024 * 1024)) / dt
-            sha1s[part_no - 1] = got or sha
+            sha1s[part_no - 1] = got or local_sha
             log(f"parte {part_no}/{len(chunks)} {ln / (1024 * 1024):.1f} MiB ok  {mbps:.2f} MiB/s  {local.name}")
     if any(not s for s in sha1s):
         raise RuntimeError("faltou SHA1 de parte — não fecho o arquivo")
@@ -291,6 +341,8 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str) -> None:
                 log(f"FECHOU {local.name} (já estava no B2 depois do timeout)")
                 return
         raise
+    if not already_complete(auth, bid, dest_name, size):
+        raise RuntimeError(f"finish ok mas tamanho não confere no B2: {dest_name}")
     log(f"FECHOU {local.name} ({size / (1024 ** 3):.2f} GiB)")
 
 
@@ -316,7 +368,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", required=True)
     ap.add_argument("--b2-prefix", required=True, help="ex: YT-MAIN/00_INBOX/2026-09-13/CANON/RAW/")
-    ap.add_argument("--min-bytes", type=int, default=524288000)
+    ap.add_argument("--min-bytes", type=int, default=104857600)
     ap.add_argument("--max-depth", type=int, default=1)
     args = ap.parse_args()
     src = Path(args.src)
@@ -329,8 +381,25 @@ def main() -> int:
         log("nenhum gordo nesta pasta")
         return 0
     account, key = read_b2_keys()
+    CREDS["account"], CREDS["key"] = account, key
     auth = authorize(account, key)
     bid = bucket_id(auth)
+
+    def parts_done(p: Path) -> int:
+        dest = prefix + p.name
+        try:
+            unf = list_unfinished(auth, bid, dest)
+            if not unf:
+                return 0
+            st = p.stat()
+            _fid, have, _ps = pick_unfinished(
+                auth, unf, st.st_size, int(st.st_mtime * 1000), PART
+            )
+            return len(have)
+        except Exception:
+            return 0
+
+    files.sort(key=lambda p: (-parts_done(p), p.stat().st_size, p.name.lower()))
     log(f"gordos nesta pasta: {len(files)}")
     rc = 0
     for i, f in enumerate(files, 1):
