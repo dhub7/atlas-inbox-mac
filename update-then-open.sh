@@ -85,6 +85,16 @@ update() {
 
 update
 
+fix_desktop_icons() {
+  if [ -f "${APP}/ATLAS Teste Gordo.command" ]; then
+    cp "${APP}/ATLAS Teste Gordo.command" "${HOME}/Desktop/ATLAS Teste Gordo.command"
+    chmod +x "${HOME}/Desktop/ATLAS Teste Gordo.command" 2>/dev/null || true
+    xattr -cr "${HOME}/Desktop/ATLAS Teste Gordo.command" 2>/dev/null || true
+  fi
+  chmod +x "${HOME}/Desktop/ATLAS Drive.command" "${HOME}/Desktop/ATLAS Mandar B2.command" 2>/dev/null || true
+}
+fix_desktop_icons
+
 # JS novo + Node velho na memoria = API "not found"
 if ! envio_em_curso; then
   disk="$(disk_version)"
