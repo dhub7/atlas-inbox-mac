@@ -289,7 +289,7 @@ def pick_unfinished(
     return best_id, best_parts, best_ps
 
 
-def upload_file(auth: dict, bid: str, local: Path, dest_name: str) -> None:
+def upload_file(auth: dict, bid: str, local: Path, dest_name: str, fresh: bool = False) -> None:
     st = local.stat()
     size = st.st_size
     mtime_ms = int(st.st_mtime * 1000)
@@ -297,6 +297,11 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str) -> None:
         log(f"já no B2 ({size} bytes): {dest_name}")
         return
     unfinished = list_unfinished(auth, bid, dest_name)
+    if fresh:
+        for f in unfinished:
+            log(f"--fresh: cancelo unfinished {f['fileId'][-12:]}")
+            cancel(auth, f["fileId"])
+        unfinished = []
     file_id, have, part_size = pick_unfinished(auth, unfinished, size, mtime_ms, PART)
     if file_id is None:
         file_id = start_large(auth, bid, dest_name, size, mtime_ms)
@@ -366,20 +371,29 @@ def iter_files(src: Path, min_bytes: int, max_depth: int) -> list[Path]:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--src", required=True)
     ap.add_argument("--b2-prefix", required=True, help="ex: YT-MAIN/00_INBOX/2026-09-13/CANON/RAW/")
+    ap.add_argument("--src", default="")
+    ap.add_argument("--file", default="", help="um arquivo só (teste)")
+    ap.add_argument("--fresh", action="store_true", help="ignora unfinished e começa em 8MB")
     ap.add_argument("--min-bytes", type=int, default=104857600)
     ap.add_argument("--max-depth", type=int, default=1)
     args = ap.parse_args()
-    src = Path(args.src)
-    if not src.is_dir():
-        log(f"pasta não existe: {src}")
-        return 1
     prefix = args.b2_prefix.strip("/") + "/"
-    files = iter_files(src, args.min_bytes, args.max_depth)
-    if not files:
-        log("nenhum gordo nesta pasta")
-        return 0
+    if args.file:
+        p = Path(args.file).expanduser()
+        if not p.is_file():
+            log(f"arquivo não existe: {p}")
+            return 1
+        files = [p]
+    else:
+        src = Path(args.src)
+        if not src.is_dir():
+            log(f"pasta não existe: {src}")
+            return 1
+        files = iter_files(src, args.min_bytes, args.max_depth)
+        if not files:
+            log("nenhum gordo nesta pasta")
+            return 0
     account, key = read_b2_keys()
     CREDS["account"], CREDS["key"] = account, key
     auth = authorize(account, key)
@@ -399,14 +413,15 @@ def main() -> int:
         except Exception:
             return 0
 
-    files.sort(key=lambda p: (-parts_done(p), p.stat().st_size, p.name.lower()))
+    if not args.file:
+        files.sort(key=lambda p: (-parts_done(p), p.stat().st_size, p.name.lower()))
     log(f"gordos nesta pasta: {len(files)}")
     rc = 0
     for i, f in enumerate(files, 1):
         dest = prefix + f.name
         log(f"--- gordo {i}/{len(files)} {f.name} {f.stat().st_size / (1024 ** 3):.2f} GiB ---")
         try:
-            upload_file(auth, bid, f, dest)
+            upload_file(auth, bid, f, dest, fresh=args.fresh)
         except Exception as e:
             log(f"ERRO {f.name}: {e}")
             rc = 1
