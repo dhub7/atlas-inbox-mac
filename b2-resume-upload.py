@@ -341,14 +341,27 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str, fresh: bool =
         finish(auth, file_id, sha1s)
     except Exception as e:
         msg = str(e)
-        if "400" in msg or "already" in msg.lower():
-            if already_complete(auth, bid, dest_name, size):
-                log(f"FECHOU {local.name} (já estava no B2 depois do timeout)")
+        if "400" not in msg and "already" not in msg.lower():
+            raise
+        log(f"finish 400 — confiro se já fechou: {e}")
+    for _ in range(8):
+        try:
+            info = b2(auth, "b2_get_file_info", {"fileId": file_id})
+            got = int(info.get("contentLength") or info.get("size") or 0)
+            if got == size:
+                log(f"FECHOU {local.name} ({size / (1024 ** 3):.2f} GiB)")
                 return
-        raise
-    if not already_complete(auth, bid, dest_name, size):
-        raise RuntimeError(f"finish ok mas tamanho não confere no B2: {dest_name}")
-    log(f"FECHOU {local.name} ({size / (1024 ** 3):.2f} GiB)")
+            log(f"get_file_info size={got} esperado={size}")
+        except Exception as e:
+            log(f"get_file_info: {e}")
+        if already_complete(auth, bid, dest_name, size):
+            log(f"FECHOU {local.name} (listou no B2)")
+            return
+        time.sleep(2)
+    if already_complete(auth, bid, dest_name, size):
+        log(f"FECHOU {local.name} (listou no B2)")
+        return
+    raise RuntimeError(f"finish rodou mas tamanho não confere no B2: {dest_name}")
 
 
 def iter_files(src: Path, min_bytes: int, max_depth: int) -> list[Path]:
@@ -400,12 +413,11 @@ def main() -> int:
             return 1
         args.file = str(cands[0])
         rel = cands[0].relative_to(root).as_posix()
-        day = time.strftime("%Y-%m-%d")
         parent = str(Path(rel).parent).replace("\\", "/")
         if parent in (".", ""):
-            args.b2_prefix = f"YT-MAIN/00_INBOX/{day}/"
+            args.b2_prefix = "YT-MAIN/00_INBOX/TRANSFER/"
         else:
-            args.b2_prefix = f"YT-MAIN/00_INBOX/{day}/{parent}/"
+            args.b2_prefix = f"YT-MAIN/00_INBOX/TRANSFER/{parent}/"
         log(f"pick-test: {cands[0]}  {cands[0].stat().st_size / (1024 ** 3):.2f} GiB")
         log(f"pick-test dest: {args.b2_prefix}")
     prefix = args.b2_prefix.strip("/") + "/"

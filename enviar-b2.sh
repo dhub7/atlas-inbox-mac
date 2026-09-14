@@ -13,16 +13,7 @@ if [ "$#" -gt 1 ]; then
 fi
 
 SRC="${1:-$HOME/ATLAS/TRANSFER}"
-DAY="$(date +%Y-%m-%d)"
-DEST="b2:atlas-victor-bruto/YT-MAIN/00_INBOX/${DAY}/"
-
-case "$DEST" in
-  b2:atlas-victor-bruto/YT-MAIN/00_INBOX/20[0-9][0-9]-[0-1][0-9]-[0-3][0-9]/) ;;
-  *)
-    echo "destino recusado"
-    exit 1
-    ;;
-esac
+DEST="b2:atlas-victor-bruto/YT-MAIN/00_INBOX/TRANSFER/"
 
 if [ ! -d "$SRC" ]; then
   echo "Pasta não existe: $SRC"
@@ -254,4 +245,4 @@ if [ "${rc}" -ne 0 ]; then
 fi
 
 echo
-echo "Pronto. Abre ATLAS Drive e olha 00_INBOX/${DAY}/"
+echo "Pronto. Abre ATLAS Drive e olha 00_INBOX/TRANSFER/"
