@@ -51,20 +51,13 @@ Se o footage já está em outra pasta (não precisa copiar pra TRANSFER):
 bash ~/ATLAS/inbox-mac/enviar-b2.sh "/Users/erica/CAMINHO/DA/PASTA"
 ```
 
-Mandar B2: pasta por pasta. Pequenos (<100 MB) rclone. Gordos: B2 resume, hash local no skip, C904 58 partes primeiro. Pipe: list_parts + backoff, não pula.
+Mandar B2: pasta por pasta. Pequenos (<100 MB) rclone. Gordos: B2 resume, **32 MB × 3 paralelo** em arquivo novo (retoma o tamanho antigo se já tiver pedaço no B2). Pipe: list_parts + backoff, não pula. O clique **já atualiza** o app do B2 antes de enviar.
 
 ## Se o Terminal mostrar ERROR / % caindo
 
 É Starlink, não arquivo duplicado. Deixa aberto. Não clica Mandar de novo.
 
-Pra o próximo lote (script novo, mais leve na rede), no Mac dela:
-
-```
-cp ~/Downloads/inbox-mac/enviar-b2.sh ~/ATLAS/inbox-mac/enviar-b2.sh
-chmod +x ~/ATLAS/inbox-mac/enviar-b2.sh
-```
-
-Só depois que o envio atual terminar.
+Próximo lote: só clicar **ATLAS Mandar B2**. O ícone puxa a versão nova do B2 sozinho. Sem AirDrop, sem copiar script.
 
 ## Não fazer
 

@@ -10,23 +10,29 @@ import json
 import os
 import random
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 BUCKET = "atlas-victor-bruto"
-PART = 8 * 1024 * 1024
+PART = 32 * 1024 * 1024
+WORKERS = 3
 MIN_PART = 5 * 1024 * 1024
 RETRIES = 20
 SLEEP = 8
 MAX_SLEEP = 120
-UA = "ATLAS-Mandar-B2/12.19"
+UA = "ATLAS-Mandar-B2/12.20"
 CREDS = {"account": "", "key": ""}
+AUTH_LOCK = threading.RLock()
+LOG_LOCK = threading.Lock()
 
 
 def log(msg: str) -> None:
-    print(msg, flush=True)
+    with LOG_LOCK:
+        print(msg, flush=True)
 
 
 def rclone_conf() -> Path:
@@ -94,22 +100,27 @@ def authorize(account: str, key: str) -> dict:
 
 
 def refresh_auth(auth: dict) -> None:
-    new = authorize(CREDS["account"], CREDS["key"])
-    auth.clear()
-    auth.update(new)
-    log("reautorizei conta B2 (401/token)")
+    with AUTH_LOCK:
+        new = authorize(CREDS["account"], CREDS["key"])
+        auth.clear()
+        auth.update(new)
+        log("reautorizei conta B2 (401/token)")
 
 
 def b2(auth: dict, path: str, body: dict, timeout: int = 120) -> dict:
-    url = auth["apiUrl"].rstrip("/") + "/b2api/v2/" + path
-    try:
-        return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
-    except RuntimeError as e:
-        if "HTTP 401" not in str(e):
-            raise
-        refresh_auth(auth)
+    with AUTH_LOCK:
         url = auth["apiUrl"].rstrip("/") + "/b2api/v2/" + path
-        return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
+        try:
+            return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
+        except RuntimeError as e:
+            if "HTTP 401" not in str(e):
+                raise
+            new = authorize(CREDS["account"], CREDS["key"])
+            auth.clear()
+            auth.update(new)
+            log("reautorizei conta B2 (401/token)")
+            url = auth["apiUrl"].rstrip("/") + "/b2api/v2/" + path
+            return api("POST", url, auth["authorizationToken"], body=body, timeout=timeout)
 
 
 def bucket_id(auth: dict) -> str:
@@ -226,7 +237,7 @@ def upload_part(auth: dict, file_id: str, part_no: int, blob: bytes, sha1: str) 
                     "Content-Type": "application/octet-stream",
                     "Content-Length": str(len(blob)),
                 },
-                timeout=300,
+                timeout=600,
             )
             return sha1
         except Exception as e:
@@ -315,26 +326,47 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str, fresh: bool =
         log(f"retomo {local.name}: {len(have)} partes já no B2, parte={part_size}")
     chunks = plan_parts(size, part_size)
     sha1s = [""] * len(chunks)
+    pending: list[tuple[int, int, int]] = []
     with local.open("rb") as fh:
         for part_no, off, ln in chunks:
+            remote = have.get(part_no)
+            remote_len = int(remote.get("contentLength") or 0) if remote else 0
+            remote_sha = sha_of_part(remote) if remote else ""
+            if remote and remote_len == ln and remote_sha:
+                fh.seek(off)
+                blob = fh.read(ln)
+                if len(blob) != ln:
+                    raise RuntimeError(f"leitura curta em {local} off={off}")
+                local_sha = hashlib.sha1(blob).hexdigest()
+                if remote_sha == local_sha:
+                    sha1s[part_no - 1] = local_sha
+                    log(f"parte {part_no}/{len(chunks)} skip (hash+tamanho ok)")
+                    continue
+            pending.append((part_no, off, ln))
+    workers = min(WORKERS, max(1, len(pending)))
+    if pending:
+        log(f"subindo {len(pending)} partes em {workers} paralelo  parte={part_size}  {local.name}")
+
+    def do_part(item: tuple[int, int, int]) -> None:
+        part_no, off, ln = item
+        with local.open("rb") as fh:
             fh.seek(off)
             blob = fh.read(ln)
-            if len(blob) != ln:
-                raise RuntimeError(f"leitura curta em {local} off={off}")
-            local_sha = hashlib.sha1(blob).hexdigest()
-            remote = have.get(part_no)
-            remote_sha = sha_of_part(remote) if remote else ""
-            remote_len = int(remote.get("contentLength") or 0) if remote else 0
-            if remote_sha == local_sha and remote_len == ln:
-                sha1s[part_no - 1] = local_sha
-                log(f"parte {part_no}/{len(chunks)} skip (hash+tamanho ok)")
-                continue
-            t0 = time.time()
-            got = upload_part(auth, file_id, part_no, blob, local_sha)
-            dt = max(time.time() - t0, 0.001)
-            mbps = (ln / (1024 * 1024)) / dt
-            sha1s[part_no - 1] = got or local_sha
-            log(f"parte {part_no}/{len(chunks)} {ln / (1024 * 1024):.1f} MiB ok  {mbps:.2f} MiB/s  {local.name}")
+        if len(blob) != ln:
+            raise RuntimeError(f"leitura curta em {local} off={off}")
+        local_sha = hashlib.sha1(blob).hexdigest()
+        t0 = time.time()
+        got = upload_part(auth, file_id, part_no, blob, local_sha)
+        dt = max(time.time() - t0, 0.001)
+        mbps = (ln / (1024 * 1024)) / dt
+        sha1s[part_no - 1] = got or local_sha
+        log(f"parte {part_no}/{len(chunks)} {ln / (1024 * 1024):.1f} MiB ok  {mbps:.2f} MiB/s  {local.name}")
+
+    if pending:
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = [pool.submit(do_part, item) for item in pending]
+            for fut in as_completed(futs):
+                fut.result()
     if any(not s for s in sha1s):
         raise RuntimeError("faltou SHA1 de parte — não fecho o arquivo")
     try:

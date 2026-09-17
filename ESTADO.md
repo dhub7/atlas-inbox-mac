@@ -1,10 +1,10 @@
 # Inbox + Drive — memória canônica
 
-**Atualizado:** 2026-09-12  
+**Atualizado:** 2026-09-17  
 **Código (Windows):** `C:\Users\Daniel\Desktop\Projeto Vitor\07_Execucao\B0_Infra\inbox-mac`  
 **GitHub privado:** https://github.com/dhub7/atlas-inbox-mac  
 **B2 app:** `b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/` (`version.txt` + `current/`)  
-**Versão local:** `2026.09.12.1` (Erica Drive; ainda não precisa publicar no Mac do Victor)  
+**Versão:** `2026.09.17.1` — gordos 32 MB × 3 paralelo. Próximo clique no Mandar da Erica puxa. Victor não precisa.  
 **Mac Victor:** `~/ATLAS/inbox-mac` · ícone Desktop `ATLAS Inbox.command` — **não mexer**  
 **Mac Erica:** `bash install-drive.sh` · cola em `ERICA_TERMINAL.md`  
 **Handoff sessão:** `~\.claude\session-data\2026-09-12-atlas-inbox-drive-session.tmp`

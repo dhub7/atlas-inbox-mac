@@ -44,6 +44,17 @@ HOST="$(hostname -s 2>/dev/null || hostname | tr -d '[:space:]')"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 LOG="${LOGDIR}/enviar-${HOST}-${STAMP}.log"
 PIDFILE="${LOGDIR}/rclone.pid"
+LOCKDIR="${LOGDIR}/enviar.lock.d"
+if mkdir "$LOCKDIR" 2>/dev/null; then
+  echo $$ > "$LOCKDIR/pid"
+else
+  old="$(cat "$LOCKDIR/pid" 2>/dev/null || true)"
+  if [ -n "$old" ] && kill -0 "$old" 2>/dev/null; then
+    echo "Já tem Mandar rodando (pid ${old}). Não clica de novo."
+    exit 1
+  fi
+  echo $$ > "$LOCKDIR/pid"
+fi
 OPS="b2:atlas-victor-bruto/YT-MAIN/00_APPS/inbox-mac/ops"
 LIVE="${OPS}/enviar-live.log"
 ARCH="${OPS}/$(basename "$LOG")"
@@ -54,7 +65,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume (8MB novo; retoma o tamanho que já estiver no B2)."
+  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume (32MB novo, 3 paralelo; retoma o tamanho que já estiver no B2)."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -79,6 +90,7 @@ cleanup() {
     kill "$(cat "${PIDFILE}")" 2>/dev/null || true
     rm -f "${PIDFILE}"
   fi
+  rm -rf "${LOCKDIR}"
   ship_log
 }
 trap cleanup EXIT

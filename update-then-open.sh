@@ -14,6 +14,12 @@ envio_em_curso() {
   if pgrep -f "[r]clone copy /" >/dev/null 2>&1; then
     return 0
   fi
+  if pgrep -f "[b]2-resume-upload.py" >/dev/null 2>&1; then
+    return 0
+  fi
+  if pgrep -f "[e]nviar-b2.sh" >/dev/null 2>&1; then
+    return 0
+  fi
   node -e '
     fetch("http://127.0.0.1:8088/api/jobs")
       .then((r) => r.json())
@@ -68,7 +74,7 @@ update() {
     --exclude 'bin/**' \
     --exclude '.git/**' \
     >/dev/null 2>&1 || true
-  chmod +x "${APP}/update-then-open.sh" "${APP}/enviar-b2.sh" 2>/dev/null || true
+  chmod +x "${APP}/update-then-open.sh" "${APP}/enviar-b2.sh" "${APP}/b2-resume-upload.py" 2>/dev/null || true
   for n in "ATLAS Inbox.command" "ATLAS Drive.command" "ATLAS Mandar B2.command"; do
     if [ -f "${HOME}/Desktop/${n}" ] && [ -f "${APP}/${n}" ]; then
       cp "${APP}/${n}" "${HOME}/Desktop/${n}"
