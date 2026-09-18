@@ -51,7 +51,7 @@ Se o footage já está em outra pasta (não precisa copiar pra TRANSFER):
 bash ~/ATLAS/inbox-mac/enviar-b2.sh "/Users/erica/CAMINHO/DA/PASTA"
 ```
 
-Mandar B2: pasta por pasta. Pequenos (<100 MB) rclone. Gordos: B2 resume, **32 MB × 3 paralelo** em arquivo novo (retoma o tamanho antigo se já tiver pedaço no B2). Pipe: list_parts + backoff, não pula. O clique **já atualiza** o app do B2 antes de enviar.
+Mandar B2: pasta por pasta. Pequenos (<100 MB) rclone. Gordos: B2 resume **8 MB em série** (a que fechou os 94 GB). 32 MB × 3 paralelo foi revertido — Starlink quebrava as 3 fatias e não gravava nada. Pipe: list_parts + backoff, não pula. O clique **já atualiza** o app do B2 antes de enviar.
 
 ## Se o Terminal mostrar ERROR / % caindo
 

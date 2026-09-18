@@ -1,6 +1,6 @@
 # ATLAS Mandar B2 — como funciona (pra levar pra outro modo)
 
-Atualizado: 2026-09-17. Bucket `atlas-victor-bruto`. Código no Mac: `~/ATLAS/inbox-mac`. Publicar: `.\publicar.ps1` neste Windows.
+Atualizado: 2026-09-17 (rollback 8 MiB série). Bucket `atlas-victor-bruto`. Código no Mac: `~/ATLAS/inbox-mac`. Publicar: `.\publicar.ps1` neste Windows.
 
 ---
 
@@ -22,12 +22,12 @@ Link Starlink medido: teste ~24 **Mbps** upload ≈ 3 MB/s. rclone chegava ~3,5 
 1. Varre `TRANSFER` **pasta por pasta** (`find \| sort`, nome).
 2. Em cada pasta, só arquivos **daquele nível** (`--max-depth 1`).
 3. **Pequenos (< 500 MB):** `rclone copy --max-size 500M --transfers 4 --order-by size,ascending`. Já fechavam.
-4. **Gordos (≥ 100 MB):** `b2-resume-upload.py` (API nativa B2, **não** rclone). Um arquivo por vez, menor→maior. **3 partes em paralelo.**
+4. **Gordos (≥ 100 MB):** `b2-resume-upload.py` (API nativa B2, **não** rclone). Um arquivo por vez, menor→maior. **1 parte por vez, 8 MiB.** 32 MiB × 3 paralelo revertido em 17/09: Starlink quebrava as 3 e zero fatia gravava.
 
 Gordo no B2 = *large file*:
 
 - `b2_start_large_file` (ou retoma unfinished do mesmo `fileName`)
-- Partes de **32 MiB** em arquivo **novo** (última = resto). Se retomar unfinished antigo, **mantém o tamanho que já está no B2** (esta leva foi 8 MiB). 3 uploads de parte ao mesmo tempo.
+- Partes de **8 MiB** em arquivo novo (última = resto). Se retomar unfinished, **mantém o tamanho que já está no B2**.
 - `b2_get_upload_part_url` **novo a cada tentativa** (URL morre depois de erro)
 - `b2_upload_part` + SHA1 da parte
 - `b2_finish_large_file` com o array de SHA1s **só quando todas as partes existem**

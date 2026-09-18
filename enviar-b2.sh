@@ -65,7 +65,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume (32MB novo, 3 paralelo; retoma o tamanho que já estiver no B2)."
+  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume (8MB novo; retoma o tamanho que já estiver no B2)."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
