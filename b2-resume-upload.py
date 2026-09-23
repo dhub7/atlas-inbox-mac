@@ -18,10 +18,11 @@ from pathlib import Path
 BUCKET = "atlas-victor-bruto"
 PART = 8 * 1024 * 1024
 MIN_PART = 5 * 1024 * 1024
+B2_MAX_PARTS = 10000
+UA = "ATLAS-Mandar-B2/12.21"
 RETRIES = 20
 SLEEP = 8
 MAX_SLEEP = 120
-UA = "ATLAS-Mandar-B2/12.19"
 CREDS = {"account": "", "key": ""}
 
 
@@ -247,6 +248,18 @@ def finish(auth: dict, file_id: str, sha1s: list[str]) -> None:
     b2(auth, "b2_finish_large_file", {"fileId": file_id, "partSha1Array": sha1s}, timeout=180)
 
 
+def part_size_for(size: int, base: int = PART) -> int:
+    """B2 aceita no máximo 10000 partes. 100 GB / 8 MiB = 12800 → estoura.
+    Sobe a fatia (múltiplo de 1 MiB, ≥ 8 MiB) até caber."""
+    mb = 1024 * 1024
+    need = (size + B2_MAX_PARTS - 1) // B2_MAX_PARTS
+    ps = max(base, need, MIN_PART)
+    ps = ((ps + mb - 1) // mb) * mb
+    while (size + ps - 1) // ps > B2_MAX_PARTS:
+        ps += mb
+    return ps
+
+
 def plan_parts(size: int, part_size: int) -> list[tuple[int, int, int]]:
     """[(part_no, offset, length), ...]"""
     out = []
@@ -302,12 +315,13 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str, fresh: bool =
             log(f"--fresh: cancelo unfinished {f['fileId'][-12:]}")
             cancel(auth, f["fileId"])
         unfinished = []
-    file_id, have, part_size = pick_unfinished(auth, unfinished, size, mtime_ms, PART)
+    want_ps = part_size_for(size, PART)
+    file_id, have, part_size = pick_unfinished(auth, unfinished, size, mtime_ms, want_ps)
     if file_id is None:
         file_id = start_large(auth, bid, dest_name, size, mtime_ms)
         have = {}
-        part_size = PART
-        log(f"novo large file {local.name} {size} bytes parte={part_size}")
+        part_size = want_ps
+        log(f"novo large file {local.name} {size} bytes parte={part_size} ({(size + part_size - 1) // part_size} partes)")
     else:
         for f in unfinished:
             if f["fileId"] != file_id:

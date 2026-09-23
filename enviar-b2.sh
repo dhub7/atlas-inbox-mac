@@ -65,7 +65,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta. Pequenos: rclone 4 paralelo. Gordos: B2 resume (8MB novo; retoma o tamanho que já estiver no B2)."
+  echo "Pasta por pasta. Pequenos: rclone (pula se não tiver <100MB). Gordos: B2 resume (8MB; fatia maior se o arquivo passar de 10000 partes)."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -235,8 +235,15 @@ while IFS= read -r dir; do
     nome="$rel"
   fi
   echo ">>> pasta ${nome}  arquivos=${files}" | tee -a "$LOG"
-  run_phase "${nome}/pequenos" 4 4 --max-size 100M --max-depth 1
-  r1=$?
+  small="$(find "$dir" -maxdepth 1 -type f ! -name '.DS_Store' ! -name '._*' -size -104857600c | wc -l | tr -d ' ')"
+  r1=0
+  if [ "${small}" = "0" ]; then
+    echo "${nome}/pequenos: nenhum <100MB — pulo rclone (B2 ainda não tem essa pasta)." | tee -a "$LOG"
+  else
+    rclone mkdir "${COPY_DEST}" >/dev/null 2>&1 || true
+    run_phase "${nome}/pequenos" 4 4 --max-size 100M --max-depth 1
+    r1=$?
+  fi
   run_gordos_phase "${nome}"
   r2=$?
   if [ "${r1}" -ne 0 ]; then
