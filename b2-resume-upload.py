@@ -323,10 +323,19 @@ def upload_file(auth: dict, bid: str, local: Path, dest_name: str, fresh: bool =
         part_size = want_ps
         log(f"novo large file {local.name} {size} bytes parte={part_size} ({(size + part_size - 1) // part_size} partes)")
     else:
-        for f in unfinished:
-            if f["fileId"] != file_id:
-                cancel(auth, f["fileId"])
-        log(f"retomo {local.name}: {len(have)} partes já no B2, parte={part_size}")
+        nparts = (size + part_size - 1) // part_size
+        if nparts > B2_MAX_PARTS:
+            log(f"unfinished parte={part_size} daria {nparts} partes (>10000) — cancelo e recomeço com {want_ps}")
+            cancel(auth, file_id)
+            file_id = start_large(auth, bid, dest_name, size, mtime_ms)
+            have = {}
+            part_size = want_ps
+            log(f"novo large file {local.name} {size} bytes parte={part_size} ({(size + part_size - 1) // part_size} partes)")
+        else:
+            for f in unfinished:
+                if f["fileId"] != file_id:
+                    cancel(auth, f["fileId"])
+            log(f"retomo {local.name}: {len(have)} partes já no B2, parte={part_size}")
     chunks = plan_parts(size, part_size)
     sha1s = [""] * len(chunks)
     with local.open("rb") as fh:
