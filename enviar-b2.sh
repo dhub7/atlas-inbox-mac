@@ -1,7 +1,7 @@
 #!/bin/bash
 # Sobe a pasta TRANSFER (ou o caminho passado) pro B2.
 # Nunca sync. Nunca --delete.
-# Pequenos (<100M): rclone 4 paralelo. Gordos (>=100M): B2 resume.
+# Pequenos (<64M): rclone, sem large file. De 64M pra cima: B2 resume.
 # Vigia: 0 B/s ~45s → reinicia a mesma fase (ignore-existing).
 set -euo pipefail
 export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:${PATH:-}"
@@ -65,7 +65,7 @@ ARCH="${OPS}/$(basename "$LOG")"
   echo "Pra: $DEST"
   echo "Arquivos: $count"
   echo "inicio=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  echo "Pasta por pasta. Pequenos: rclone (pula se não tiver <100MB). Gordos: B2 resume (8MB; fatia maior se o arquivo passar de 10000 partes)."
+  echo "Pasta por pasta. Abaixo de 64MB: rclone (sem large file). De 64MB pra cima: B2 resume (8MB; fatia maior se o arquivo passar de 10000 partes)."
   echo "Não fecha. Não clica Mandar de novo."
   echo
 } | tee "$LOG"
@@ -133,8 +133,8 @@ run_copy() {
     --b2-upload-cutoff 64M \
     --multi-thread-streams 1 \
     --disable-http2 \
-    --retries 20 \
-    --low-level-retries 10 \
+    --retries 10 \
+    --low-level-retries 50 \
     --retries-sleep 15s \
     --timeout 5m \
     --contimeout 60s \
@@ -204,7 +204,7 @@ run_gordos_phase() {
     python3 "$HERE/b2-resume-upload.py" \
       --src "$COPY_SRC" \
       --b2-prefix "$prefix" \
-      --min-bytes 104857600 \
+      --min-bytes 67108864 \
       --max-depth 1 2>&1 | tee -a "$LOG"
     rc="${PIPESTATUS[0]}"
     if [ "${rc}" -eq 0 ]; then
@@ -235,13 +235,13 @@ while IFS= read -r dir; do
     nome="$rel"
   fi
   echo ">>> pasta ${nome}  arquivos=${files}" | tee -a "$LOG"
-  small="$(find "$dir" -maxdepth 1 -type f ! -name '.DS_Store' ! -name '._*' -size -104857600c | wc -l | tr -d ' ')"
+  small="$(find "$dir" -maxdepth 1 -type f ! -name '.DS_Store' ! -name '._*' -size -67108864c | wc -l | tr -d ' ')"
   r1=0
   if [ "${small}" = "0" ]; then
-    echo "${nome}/pequenos: nenhum <100MB — pulo rclone (B2 ainda não tem essa pasta)." | tee -a "$LOG"
+    echo "${nome}/pequenos: nenhum <64MB — pulo rclone (B2 ainda não tem essa pasta)." | tee -a "$LOG"
   else
     rclone mkdir "${COPY_DEST}" >/dev/null 2>&1 || true
-    run_phase "${nome}/pequenos" 4 4 --max-size 100M --max-depth 1
+    run_phase "${nome}/pequenos" 4 4 --max-size 64M --max-depth 1
     r1=$?
   fi
   run_gordos_phase "${nome}"

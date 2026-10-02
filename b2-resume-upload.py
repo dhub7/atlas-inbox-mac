@@ -6,12 +6,15 @@ from __future__ import annotations
 import argparse
 import base64
 import hashlib
+import http.client
 import json
 import os
 import random
+import socket
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from pathlib import Path
 
@@ -19,10 +22,13 @@ BUCKET = "atlas-victor-bruto"
 PART = 8 * 1024 * 1024
 MIN_PART = 5 * 1024 * 1024
 B2_MAX_PARTS = 10000
-UA = "ATLAS-Mandar-B2/12.21"
+UA = "ATLAS-Mandar-B2/12.22"
 RETRIES = 20
 SLEEP = 8
 MAX_SLEEP = 120
+IDLE_S = 180
+SLOW_BPS = 0.02 * 1024 * 1024
+SEND_CHUNK = 256 * 1024
 CREDS = {"account": "", "key": ""}
 
 
@@ -184,10 +190,65 @@ def start_large(auth: dict, bid: str, name: str, size: int, mtime_ms: int) -> st
 
 
 def unfinished_matches(f: dict, size: int, mtime_ms: int) -> bool:
+    """Sem src_size e src_mtime_ms não retoma: unfinished antigo seria costurado."""
     info = f.get("fileInfo") or {}
-    if not info.get("src_size"):
-        return True
+    if not info.get("src_size") or not info.get("src_mtime_ms"):
+        return False
     return info.get("src_size") == str(size) and info.get("src_mtime_ms") == str(mtime_ms)
+
+
+class PartTimeout(Exception):
+    """A parte parou de andar. Não é socket.timeout: no Python 3.10+ os dois são a mesma classe."""
+
+
+def wall_seconds(nbytes: int) -> int:
+    """Teto da parte a 0,02 MiB/s, mais uma janela de silêncio."""
+    return int(nbytes / SLOW_BPS) + IDLE_S
+
+
+def post_part(url: str, token: str, blob: bytes, part_no: int, sha1: str) -> None:
+    """Manda a parte em fatias. 180 s sem byte, ou o teto da parte, aborta esta tentativa."""
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme != "https" or not parsed.hostname:
+        raise RuntimeError(f"URL de parte inválida: {parsed.scheme}")
+    path = parsed.path or "/"
+    if parsed.query:
+        path = path + "?" + parsed.query
+    conn = http.client.HTTPSConnection(parsed.hostname, parsed.port or 443, timeout=IDLE_S)
+    deadline = time.monotonic() + wall_seconds(len(blob))
+    try:
+        conn.putrequest("POST", path)
+        for key, value in (
+            ("Authorization", token),
+            ("User-Agent", UA),
+            ("X-Bz-Part-Number", str(part_no)),
+            ("X-Bz-Content-Sha1", sha1),
+            ("Content-Type", "application/octet-stream"),
+            ("Content-Length", str(len(blob))),
+        ):
+            conn.putheader(key, value)
+        conn.endheaders()
+        view = memoryview(blob)
+        off = 0
+        while off < len(view):
+            if time.monotonic() > deadline:
+                raise PartTimeout(f"teto da parte {part_no} ({wall_seconds(len(blob))}s)")
+            step = min(SEND_CHUNK, len(view) - off)
+            try:
+                conn.send(view[off : off + step])
+            except socket.timeout as e:
+                raise PartTimeout(f"parte {part_no} sem byte por {IDLE_S}s") from e
+            off += step
+        try:
+            resp = conn.getresponse()
+            body = resp.read()
+        except socket.timeout as e:
+            raise PartTimeout(f"parte {part_no} sem byte por {IDLE_S}s") from e
+        if resp.status >= 400:
+            err = body.decode("utf-8", errors="replace")[:400]
+            raise RuntimeError(f"HTTP {resp.status} {url}: {err}")
+    finally:
+        conn.close()
 
 
 def sha_of_part(p: dict) -> str:
@@ -216,19 +277,7 @@ def upload_part(auth: dict, file_id: str, part_no: int, blob: bytes, sha1: str) 
             return got
         try:
             urls = b2(auth, "b2_get_upload_part_url", {"fileId": file_id})
-            api(
-                "POST",
-                urls["uploadUrl"],
-                urls["authorizationToken"],
-                raw=blob,
-                headers={
-                    "X-Bz-Part-Number": str(part_no),
-                    "X-Bz-Content-Sha1": sha1,
-                    "Content-Type": "application/octet-stream",
-                    "Content-Length": str(len(blob)),
-                },
-                timeout=300,
-            )
+            post_part(urls["uploadUrl"], urls["authorizationToken"], blob, part_no, sha1)
             return sha1
         except Exception as e:
             err = str(e)
@@ -412,7 +461,7 @@ def main() -> int:
     ap.add_argument("--file", default="", help="um arquivo só (teste)")
     ap.add_argument("--pick-test", action="store_true", help="escolhe um CRM grande != C904 e --fresh")
     ap.add_argument("--fresh", action="store_true", help="ignora unfinished e começa em 8MB")
-    ap.add_argument("--min-bytes", type=int, default=104857600)
+    ap.add_argument("--min-bytes", type=int, default=64 * 1024 * 1024)
     ap.add_argument("--max-depth", type=int, default=1)
     args = ap.parse_args()
     if args.pick_test:
@@ -432,7 +481,7 @@ def main() -> int:
                 cands.append(p)
         cands.sort(key=lambda x: x.stat().st_size)
         if not cands:
-            log("pick-test: nenhum CRM/MP4 >=100MB (exceto C904) em ~/ATLAS/TRANSFER")
+            log("pick-test: nenhum CRM/MP4 >=64MB (exceto C904) em ~/ATLAS/TRANSFER")
             return 1
         args.file = str(cands[0])
         rel = cands[0].relative_to(root).as_posix()

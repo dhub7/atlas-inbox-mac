@@ -1,6 +1,8 @@
 # ATLAS Mandar B2 — como funciona (pra levar pra outro modo)
 
-Atualizado: 2026-09-17 (rollback 8 MiB série). Bucket `atlas-victor-bruto`. Código no Mac: `~/ATLAS/inbox-mac`. Publicar: `.\publicar.ps1` neste Windows.
+Atualizado: 2026-10-01. Bucket `atlas-victor-bruto`. Código no Mac: `~/ATLAS/inbox-mac`. Publicar: `.\publicar.ps1` neste Windows.
+
+**No ar na Erica:** `2026.09.23.2`. Esta pasta tem o patch seguinte e **não foi publicada**. Não rodar `publicar.ps1` enquanto o multipart do C982 existir. O Mac lê o B2, não o GitHub.
 
 ---
 
@@ -17,25 +19,35 @@ Link Starlink medido: teste ~24 **Mbps** upload ≈ 3 MB/s. rclone chegava ~3,5 
 
 ---
 
-## Pipeline do Mandar (v12.17+)
+## Pipeline do Mandar (pasta local, ainda não no Mac)
 
-1. Varre `TRANSFER` **pasta por pasta** (`find \| sort`, nome).
+1. Varre `TRANSFER` **pasta por pasta** (`find | sort`, nome).
 2. Em cada pasta, só arquivos **daquele nível** (`--max-depth 1`).
-3. **Pequenos (< 500 MB):** `rclone copy --max-size 500M --transfers 4 --order-by size,ascending`. Já fechavam.
-4. **Gordos (≥ 100 MB):** `b2-resume-upload.py` (API nativa B2, **não** rclone). Um arquivo por vez, menor→maior. **1 parte por vez, 8 MiB.** 32 MiB × 3 paralelo revertido em 17/09: Starlink quebrava as 3 e zero fatia gravava.
+3. **Abaixo de 64 MB:** `rclone copy --max-size 64M --b2-upload-cutoff 64M`. Não abre large file. `--retries 10` e `--low-level-retries 50`. Pasta sem arquivo pequeno pula o rclone.
+4. **De 64 MB para cima:** `b2-resume-upload.py` (API nativa B2, não rclone). Um arquivo por vez. **1 parte por vez.** Fatia base **8 MiB**; sobe (múltiplo de 1 MiB) se o arquivo passaria de 10.000 partes. 32 MiB × 3 paralelo foi revertido em 17/09: a Starlink quebrava as 3 e zero fatia gravava.
+
+O que está no Mac hoje (`2026.09.23.2`) ainda usa o corte de **100 MB**, não 64. O resto do resume abaixo já vale nessa versão, menos o timeout por progresso e o cancelamento de unfinished sem `fileInfo`.
 
 Gordo no B2 = *large file*:
 
-- `b2_start_large_file` (ou retoma unfinished do mesmo `fileName`)
-- Partes de **8 MiB** em arquivo novo (última = resto). Se retomar unfinished, **mantém o tamanho que já está no B2**.
+- `b2_start_large_file` grava `src_size` e `src_mtime_ms` no `fileInfo`
+- Partes de **8 MiB** em arquivo novo (última = resto). Se retomar unfinished, **mantém o tamanho que já está no B2**
 - `b2_get_upload_part_url` **novo a cada tentativa** (URL morre depois de erro)
 - `b2_upload_part` + SHA1 da parte
 - `b2_finish_large_file` com o array de SHA1s **só quando todas as partes existem**
-- Até o `finish`, o objeto **não aparece** no Drive (404). Fica em Unfinished Large Files (custa storage).
+- `b2_get_file_info`: tamanho igual ao arquivo local, senão não marca `FECHOU`
+- Até o `finish`, o objeto **não aparece** no Drive. Fica em Unfinished Large Files (custa storage)
 
-Resume: `b2_list_unfinished_large_files` + `b2_list_parts`. Partes com SHA1 de 40 chars = skip. **Atualizar o app não zera pedaços.** Só zera se alguém der cancel no unfinished.
+Resume:
 
-rclone **não** retoma partes B2 (issue #3019): no `Failed to copy` ele **cancela o large file**. Por isso saímos do rclone nos gordos.
+- Unfinished sem `src_size` e `src_mtime_ms` é **cancelado**. Não costura export antigo.
+- Unfinished com tamanho ou mtime diferente é cancelado.
+- Parte já no B2 só entra no `finish` se o SHA1 **e** o `contentLength` batem com a leitura local. SHA1 de 40 caracteres sozinho não basta.
+- HTTP 401 chama `authorize_account` de novo. Backoff 8 → 16 → … → **120 s**, com jitter de ±20%. Não pula o arquivo.
+- Timeout desta pasta: **180 s sem byte** na parte. O teto da parte é `tamanho / 0,02 MiB/s + 180 s` (32 MiB ≈ 30 min). No `2026.09.23.2` o teto ainda é 300 s para a requisição inteira.
+- **Atualizar o app não zera pedaços** de um unfinished que ainda bate. Só zera no cancel.
+
+rclone **não** retoma partes B2 (issue #3019): no `Failed to copy` ele **cancela o large file**. Por isso o caminho dos gordos é Python.
 
 ---
 
@@ -67,13 +79,13 @@ Não é a última fatia ser especial no B2.
 
 ---
 
-## Código 12.17 (já no B2 `00_APPS`)
+## O que o 12.17 passou a fazer, e o 23.2 manteve
 
 - Depois de cada pipe: `list_parts`. Se a parte está lá, trata como ok e segue (ou `finish`).
-- Backoff 8 → 16 → … → **120 s**. Não pula o arquivo.
-- `finish` 400 “already finished” → checa se o objeto existe e conta `FECHOU`.
+- Backoff até **120 s**. Não pula o arquivo.
+- `finish` 400 “already finished” → confere o tamanho e, se bater, conta `FECHOU`.
 
-Mandar novo **reusa 1–58 do C904**. Não começa do zero.
+Não se troca de arquivo porque a rede caiu. Um arquivo lento pela Starlink fica na frente da fila.
 
 ---
 
@@ -88,5 +100,6 @@ Mandar novo **reusa 1–58 do C904**. Não começa do zero.
 
 ## Como atualizar na Erica
 
-Control+C no Terminal → ATLAS Drive → Mandar B2.  
-Log bom: `retomo A021C904: 58 partes` e, se cair, `espero 120s (não pulo o arquivo)`.
+Não atualizar com o C982 aberto. Control+C no meio troca o processo e pode retomar fatia velha.
+
+Quando o log der `FECHOU` nesse arquivo e não houver outro multipart: `.\publicar.ps1` com o Terminal dela parado. Aí o ícone puxa a versão nova. Log bom de um resume: `retomo <arquivo>: N partes` e, se cair, `espero …s (não pulo o arquivo)`.
